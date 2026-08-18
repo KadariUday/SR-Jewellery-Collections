@@ -457,3 +457,9 @@ VALUES
 ('WELCOME10', 'PERCENTAGE', 10.00, 999.00, 500.00, true),
 ('ROYAL500', 'FIXED', 500.00, 4999.00, 500.00, true)
 ON CONFLICT (code) DO NOTHING;
+
+-- UPDATE ALL EARRING PRODUCTS SELLING PRICE TO ₹160
+UPDATE public.products 
+SET selling_price = 160.00,
+    original_price = CASE WHEN original_price < 160 THEN 250.00 ELSE original_price END,
+    discount_percentage = ROUND(((CASE WHEN original_price < 160 THEN 250.00 ELSE original_price END - 160.00) / CASE WHEN original_price < 160 THEN 250.00 ELSE original_price END) * 100);

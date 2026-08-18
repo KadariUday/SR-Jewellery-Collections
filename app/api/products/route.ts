@@ -17,19 +17,40 @@ function getProductsFile(): string {
 }
 
 function loadProductsFromServer(): Product[] {
+  let loaded: Product[] = [];
   try {
     const filePath = getProductsFile();
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf8');
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        loaded = parsed;
       }
     }
   } catch (e) {
     console.warn('Error reading server products file:', e);
   }
-  return INITIAL_PRODUCTS;
+
+  if (loaded.length === 0) {
+    loaded = [...INITIAL_PRODUCTS];
+  } else {
+    const loadedIds = new Set(loaded.map((p) => p.id));
+    INITIAL_PRODUCTS.forEach((initP) => {
+      if (!loadedIds.has(initP.id)) {
+        loaded.push(initP);
+      }
+    });
+  }
+
+  return loaded.map((p) => {
+    const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
+    return {
+      ...p,
+      selling_price: 160,
+      original_price: orig,
+      discount_percentage: Math.round(((orig - 160) / orig) * 100),
+    };
+  });
 }
 
 function saveProductsToServer(products: Product[]): boolean {

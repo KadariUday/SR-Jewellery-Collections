@@ -150,7 +150,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // If local storage didn't have products, initialize with INITIAL_PRODUCTS
+      // Initialize with INITIAL_PRODUCTS and enforce 160 selling price for all earring products
       if (initialProductsList.length === 0) {
         initialProductsList = [...INITIAL_PRODUCTS];
       } else {
@@ -162,6 +162,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
       }
+
+      // Enforce ₹160 price across all earring items
+      initialProductsList = initialProductsList.map((p) => {
+        const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
+        return {
+          ...p,
+          selling_price: 160,
+          original_price: orig,
+          discount_percentage: Math.round(((orig - 160) / orig) * 100),
+        };
+      });
 
       setProducts(initialProductsList);
       safeSetLocalStorage('srj_products', initialProductsList);
@@ -271,14 +282,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
       } catch (e) {}
 
-      // 1. Fetch live products from Supabase
+      // 1. Fetch live products from Supabase and merge all default INITIAL_PRODUCTS
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const supaProducts = data as Product[];
-            setProducts(supaProducts);
-            safeSetLocalStorage('srj_products', supaProducts);
-          }
+          let loaded = (!error && data && data.length > 0) ? (data as Product[]) : [...INITIAL_PRODUCTS];
+
+          // Merge any default INITIAL_PRODUCTS missing from response
+          const loadedIds = new Set(loaded.map((p) => p.id));
+          INITIAL_PRODUCTS.forEach((initP) => {
+            if (!loadedIds.has(initP.id)) {
+              loaded.push(initP);
+            }
+          });
+
+          // Enforce ₹160 selling price across all products
+          loaded = loaded.map((p) => {
+            const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
+            return {
+              ...p,
+              selling_price: 160,
+              original_price: orig,
+              discount_percentage: Math.round(((orig - 160) / orig) * 100),
+            };
+          });
+
+          setProducts(loaded);
+          safeSetLocalStorage('srj_products', loaded);
         });
       } catch (e) {}
 
