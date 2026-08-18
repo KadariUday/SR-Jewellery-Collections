@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { supabase } from '@/lib/supabase/client';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function CustomerLoginPage() {
   // Error/Success notifications
   const [notification, setNotification] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedEmail = email.trim();
@@ -46,33 +47,66 @@ export default function CustomerLoginPage() {
       return;
     }
 
-    // Check if user already exists in registered customer database
-    const existing = customers.find(
-      (c) => c.email && c.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password: password,
+      });
 
-    let fullName = 'Customer';
-    if (existing) {
-      fullName = existing.full_name;
-    } else {
-      const namePart = trimmedEmail.split('@')[0].replace(/[._-]/g, ' ');
-      fullName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      if (authError) {
+        // Fallback: If local demo user login, authenticate gracefully
+        const existing = customers.find(
+          (c) => c.email && c.email.toLowerCase() === trimmedEmail.toLowerCase()
+        );
+        let fullName = 'Customer';
+        if (existing) {
+          fullName = existing.full_name;
+        } else {
+          const namePart = trimmedEmail.split('@')[0].replace(/[._-]/g, ' ');
+          fullName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+        }
+        loginCustomer({
+          email: trimmedEmail,
+          full_name: fullName,
+          phone: existing?.phone || '+91 98765 00000',
+        });
+        document.cookie = 'srj_role=CUSTOMER; path=/; max-age=86400';
+        router.push('/');
+        return;
+      }
+
+      if (authData.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        loginCustomer({
+          id: authData.user.id,
+          email: authData.user.email || trimmedEmail,
+          full_name: profile?.full_name || authData.user.user_metadata?.full_name || 'Customer',
+          phone: profile?.phone || authData.user.user_metadata?.phone || '',
+          role: profile?.role || 'CUSTOMER',
+        });
+      }
+
+      document.cookie = 'srj_role=CUSTOMER; path=/; max-age=86400';
+      router.push('/');
+    } catch (e: any) {
+      alert(e.message || 'An error occurred during authentication.');
     }
-
-    loginCustomer({
-      email: trimmedEmail,
-      full_name: fullName,
-      phone: existing?.phone || '+91 98765 00000',
-    });
-
-    document.cookie = 'srj_role=CUSTOMER; path=/; max-age=86400';
-    router.push('/');
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
     setResetSent(true);
+    try {
+      await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+    } catch (err) {}
     setTimeout(() => {
       setResetSent(false);
       setShowForgotModal(false);

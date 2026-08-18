@@ -98,10 +98,9 @@ npm run dev
 ```
 Open **`http://localhost:3000`** in your browser.
 
-### 3. Admin Access
+### 3. Admin Access Setup
 Navigate to **`http://localhost:3000/admin/login`**
-- **Email**: `sushmitha.admin@srjewellery.com`
-- **Password**: `admin123`
+- Create an Admin user in your Supabase Auth console and assign `role = 'ADMIN'` in the `public.profiles` table.
 
 ---
 

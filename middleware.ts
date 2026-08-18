@@ -1,48 +1,84 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
-  // Extract token and role safely from cookies (Strict authorization enforcement)
-  const adminToken = request.cookies.get('srj_admin_token')?.value;
-  const adminRole = request.cookies.get('srj_role')?.value;
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
-  // Strict Token Validation
-  const isValidAdminToken = adminToken === 'token_admin_verified_srj';
-  const isAdminRole = adminRole === 'ADMIN';
-  const isAuthorizedAdmin = Boolean(isValidAdminToken && isAdminRole);
+  // Create a Supabase server client for SSR cookie handling
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({
+          request,
+        });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
+
+  // Verify active user session
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Check user role from profile or cookie backup
+  const roleCookie = request.cookies.get('srj_role')?.value;
+  let isAdmin = false;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    isAdmin = profile?.role === 'ADMIN' || user.user_metadata?.role === 'ADMIN';
+  } else if (roleCookie === 'ADMIN') {
+    // If local cookie specifies admin, check fallback user metadata
+    isAdmin = false; // Require active authenticated session for admin access
+  }
 
   // 1. Root /admin or /admin/ redirect
   if (pathname === '/admin' || pathname === '/admin/') {
-    if (isAuthorizedAdmin) {
+    if (isAdmin) {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     }
     return NextResponse.redirect(new URL('/admin/login', request.url));
   }
 
-  // 2. Prevent already logged-in admin from visiting login page
+  // 2. Prevent already logged-in admin from visiting admin login page
   if (pathname === '/admin/login') {
-    if (isAuthorizedAdmin) {
+    if (isAdmin) {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     }
-    return NextResponse.next();
+    return response;
   }
 
   // 3. Admin protected routes check
   if (pathname.startsWith('/admin')) {
-    if (!isAuthorizedAdmin) {
-      // Clear spoofed cookies if invalid token/role combination
-      const response = NextResponse.redirect(new URL('/admin/login', request.url));
-      if (!isValidAdminToken || !isAdminRole) {
-        response.cookies.delete('srj_admin_token');
-        response.cookies.delete('srj_role');
-      }
-      return response;
+    if (!isAdmin) {
+      const redirectUrl = new URL('/admin/login', request.url);
+      const res = NextResponse.redirect(redirectUrl);
+      res.cookies.delete('srj_admin_token');
+      res.cookies.delete('srj_role');
+      return res;
     }
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

@@ -109,75 +109,76 @@ export default function CheckoutPage() {
     processOrderPlacement();
   };
 
-  const processOrderPlacement = () => {
+  const processOrderPlacement = async () => {
     setLoading(true);
 
-    setTimeout(() => {
-      const sanitizedUtr = sanitizeUtr(upiRefNumber);
-      if (paymentMethod === 'UPI' && (!sanitizedUtr || sanitizedUtr.length < 10)) {
-        alert('Mandatory UTR Required: Please enter your 12-digit UPI Transaction Ref / UTR number from GPay, PhonePe, or Paytm.');
+    const sanitizedUtr = sanitizeUtr(upiRefNumber);
+    if (paymentMethod === 'UPI' && (!sanitizedUtr || sanitizedUtr.length < 10)) {
+      alert('Mandatory UTR Required: Please enter your 12-digit UPI Transaction Ref / UTR number from GPay, PhonePe, or Paytm.');
+      setLoading(false);
+      return;
+    }
+
+    let activeAddress =
+      selectedAddressId !== 'new'
+        ? userAddresses.find((a) => a.id === selectedAddressId) || addressForm
+        : {
+            ...addressForm,
+            full_name: sanitizeInput(addressForm.full_name),
+            phone: sanitizeInput(addressForm.phone),
+            address_line1: sanitizeInput(addressForm.address_line1),
+            address_line2: sanitizeInput(addressForm.address_line2 || ''),
+            city: sanitizeInput(addressForm.city),
+            state: sanitizeInput(addressForm.state),
+            pincode: sanitizeInput(addressForm.pincode),
+          };
+
+    if (selectedAddressId === 'new' && currentUser) {
+      const newAddrObj: CustomerAddress = {
+        ...activeAddress,
+        id: `addr-${Date.now()}`,
+        customer_id: currentUser.id,
+      };
+      addCustomerAddress(newAddrObj);
+      activeAddress = newAddrObj;
+    }
+
+    try {
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart.map((c) => ({
+            productId: c.product.id,
+            quantity: c.quantity,
+            selectedColor: c.selectedColor,
+            selectedSize: c.selectedSize,
+          })),
+          deliveryAddress: activeAddress,
+          paymentMethod,
+          couponCode: appliedCoupon?.code,
+          customerEmail: currentUser?.email || `${activeAddress.full_name.toLowerCase().replace(/\s+/g, '')}@example.com`,
+          customerName: activeAddress.full_name,
+          customerPhone: activeAddress.phone,
+          upiRefNumber: sanitizedUtr || undefined,
+          customerId: currentUser?.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to place order. Please try again.');
+        setLoading(false);
         return;
       }
 
-      let activeAddress =
-        selectedAddressId !== 'new'
-          ? userAddresses.find((a) => a.id === selectedAddressId) || addressForm
-          : {
-              ...addressForm,
-              full_name: sanitizeInput(addressForm.full_name),
-              phone: sanitizeInput(addressForm.phone),
-              address_line1: sanitizeInput(addressForm.address_line1),
-              address_line2: sanitizeInput(addressForm.address_line2 || ''),
-              city: sanitizeInput(addressForm.city),
-              state: sanitizeInput(addressForm.state),
-              pincode: sanitizeInput(addressForm.pincode),
-            };
-
-      if (selectedAddressId === 'new' && currentUser) {
-        const newAddrObj: CustomerAddress = {
-          ...activeAddress,
-          id: `addr-${Date.now()}`,
-          customer_id: currentUser.id,
-        };
-        addCustomerAddress(newAddrObj);
-        activeAddress = newAddrObj;
-      }
-
-      const orderNumber = generateOrderNumber();
-
-      const createdOrder = addOrder({
-        order_number: orderNumber,
-        customer_id: currentUser.id,
-        customer_name: activeAddress.full_name,
-        customer_email: currentUser.email || `${activeAddress.full_name.toLowerCase().replace(/\s+/g, '')}@example.com`,
-        customer_phone: activeAddress.phone,
-        subtotal,
-        discount_amount: discount,
-        shipping_fee: shippingFee,
-        total_amount: grandTotal,
-        payment_method: paymentMethod,
-        payment_status: paymentMethod === 'UPI' ? 'SUCCESS' : 'PENDING',
-        order_status: 'ORDER PLACED',
-        delivery_address: activeAddress,
-        upi_utr: sanitizedUtr || undefined,
-        notes: sanitizedUtr ? `UPI UTR Ref: ${sanitizedUtr}` : undefined,
-        items: cart.map((c) => ({
-          id: `item-${Date.now()}-${Math.random()}`,
-          order_id: '',
-          product_id: c.product.id,
-          product_name: sanitizeInput(c.product.name),
-          sku: c.product.sku,
-          purchased_price: c.product.selling_price,
-          quantity: Math.max(1, Math.floor(c.quantity)),
-          item_total: c.product.selling_price * Math.max(1, Math.floor(c.quantity)),
-          product_image: c.product.images?.[0],
-        })),
-      });
-
       setShowUpiModal(false);
       clearCart();
-      router.push(`/order-confirmation?orderNumber=${createdOrder.order_number}`);
-    }, 1000);
+      router.push(`/order-confirmation?orderNumber=${data.order.order_number}`);
+    } catch (e: any) {
+      alert('Network error while processing order. Please check your connection.');
+      setLoading(false);
+    }
   };
 
   return (

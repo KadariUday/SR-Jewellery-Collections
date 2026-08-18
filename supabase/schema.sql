@@ -1,4 +1,4 @@
--- SR JEWELLERY COLLECTIONS - ADVANCED DATABASE SCHEMA & SEED
+-- SR JEWELLERY COLLECTIONS - PRODUCTION SUPABASE DATABASE SCHEMA & RLS POLICIES
 -- Database Engine: PostgreSQL / Supabase RLS
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -13,6 +13,30 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Trigger to automatically create profile on Auth Signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    COALESCE(new.raw_user_meta_data->>'role', 'CUSTOMER')
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET email = EXCLUDED.email,
+      full_name = EXCLUDED.full_name,
+      updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- 2. CATEGORIES TABLE
 CREATE TABLE IF NOT EXISTS public.categories (
@@ -59,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.products (
 -- 4. PRODUCT IMAGES TABLE
 CREATE TABLE IF NOT EXISTS public.product_images (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES public.products(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
     display_order INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -68,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.product_images (
 -- 5. PRODUCT VARIANTS TABLE
 CREATE TABLE IF NOT EXISTS public.product_variants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES public.products(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     colour TEXT,
     size TEXT,
@@ -81,7 +105,7 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
 -- 6. INVENTORY HISTORY TABLE
 CREATE TABLE IF NOT EXISTS public.inventory_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES public.products(id) ON DELETE CASCADE,
     previous_stock INT NOT NULL,
     new_stock INT NOT NULL,
     change_amount INT NOT NULL,
@@ -131,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
 CREATE TABLE IF NOT EXISTS public.order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    product_id TEXT REFERENCES public.products(id) ON DELETE SET NULL,
     product_name TEXT NOT NULL,
     sku TEXT NOT NULL,
     purchased_price NUMERIC(10,2) NOT NULL,
@@ -273,7 +297,7 @@ CREATE TABLE IF NOT EXISTS public.coupons (
 -- 19. REVIEWS TABLE
 CREATE TABLE IF NOT EXISTS public.reviews (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    product_id TEXT REFERENCES public.products(id) ON DELETE CASCADE,
     customer_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     customer_name TEXT NOT NULL,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
@@ -303,17 +327,91 @@ ALTER TABLE public.customer_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
--- Allow public read on categories, products, images, store_profile, store_settings, approved reviews
-CREATE POLICY "Public categories read" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Public products read" ON public.products FOR SELECT USING (is_active = true);
-CREATE POLICY "Admin products read all" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Public images read" ON public.product_images FOR SELECT USING (true);
-CREATE POLICY "Public store profile read" ON public.store_profile FOR SELECT USING (true);
-CREATE POLICY "Public store settings read" ON public.store_settings FOR SELECT USING (true);
-CREATE POLICY "Public approved reviews read" ON public.reviews FOR SELECT USING (status = 'APPROVED');
+-- Helper function to check if current user is admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'ADMIN'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Insert contact messages by anyone
+-- 1. Profiles Policies
+DROP POLICY IF EXISTS "Public / Users read own profile" ON public.profiles;
+CREATE POLICY "Public / Users read own profile" ON public.profiles FOR SELECT USING (auth.uid() = id OR public.is_admin());
+DROP POLICY IF EXISTS "Users update own profile" ON public.profiles;
+CREATE POLICY "Users update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id OR public.is_admin());
+DROP POLICY IF EXISTS "Admins full profiles access" ON public.profiles;
+CREATE POLICY "Admins full profiles access" ON public.profiles FOR ALL USING (public.is_admin());
+
+-- 2. Categories Policies
+DROP POLICY IF EXISTS "Public categories read" ON public.categories;
+CREATE POLICY "Public categories read" ON public.categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins edit categories" ON public.categories;
+CREATE POLICY "Admins edit categories" ON public.categories FOR ALL USING (public.is_admin());
+
+-- 3. Products Policies
+DROP POLICY IF EXISTS "Public products read" ON public.products;
+CREATE POLICY "Public products read" ON public.products FOR SELECT USING (is_active = true OR public.is_admin());
+DROP POLICY IF EXISTS "Admins manage products" ON public.products;
+CREATE POLICY "Admins manage products" ON public.products FOR ALL USING (public.is_admin());
+
+-- 4. Product Images Policies
+DROP POLICY IF EXISTS "Public images read" ON public.product_images;
+CREATE POLICY "Public images read" ON public.product_images FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins manage images" ON public.product_images;
+CREATE POLICY "Admins manage images" ON public.product_images FOR ALL USING (public.is_admin());
+
+-- 5. Customer Addresses Policies
+DROP POLICY IF EXISTS "Customers CRUD own addresses" ON public.customer_addresses;
+CREATE POLICY "Customers CRUD own addresses" ON public.customer_addresses FOR ALL USING (customer_id = auth.uid() OR public.is_admin());
+
+-- 6. Orders Policies
+DROP POLICY IF EXISTS "Customers read own orders" ON public.orders;
+CREATE POLICY "Customers read own orders" ON public.orders FOR SELECT USING (customer_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Public / Customers place orders" ON public.orders;
+CREATE POLICY "Public / Customers place orders" ON public.orders FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admins update orders" ON public.orders;
+CREATE POLICY "Admins update orders" ON public.orders FOR UPDATE USING (public.is_admin());
+
+-- 7. Order Items Policies
+DROP POLICY IF EXISTS "Public / Customers read order items" ON public.order_items;
+CREATE POLICY "Public / Customers read order items" ON public.order_items FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public / Customers insert order items" ON public.order_items;
+CREATE POLICY "Public / Customers insert order items" ON public.order_items FOR INSERT WITH CHECK (true);
+
+-- 8. Store Profile & Settings Policies
+DROP POLICY IF EXISTS "Public store profile read" ON public.store_profile;
+CREATE POLICY "Public store profile read" ON public.store_profile FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins update store_profile" ON public.store_profile;
+CREATE POLICY "Admins update store_profile" ON public.store_profile FOR ALL USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Public store settings read" ON public.store_settings;
+CREATE POLICY "Public store settings read" ON public.store_settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins update store_settings" ON public.store_settings;
+CREATE POLICY "Admins update store_settings" ON public.store_settings FOR ALL USING (public.is_admin());
+
+-- 9. Contact Messages Policies
+DROP POLICY IF EXISTS "Public insert contact_messages" ON public.contact_messages;
 CREATE POLICY "Public insert contact_messages" ON public.contact_messages FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admins manage contact_messages" ON public.contact_messages;
+CREATE POLICY "Admins manage contact_messages" ON public.contact_messages FOR ALL USING (public.is_admin());
+
+-- 10. Reviews Policies
+DROP POLICY IF EXISTS "Public approved reviews read" ON public.reviews;
+CREATE POLICY "Public approved reviews read" ON public.reviews FOR SELECT USING (status = 'APPROVED' OR customer_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Customers create reviews" ON public.reviews;
+CREATE POLICY "Customers create reviews" ON public.reviews FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Admins manage reviews" ON public.reviews;
+CREATE POLICY "Admins manage reviews" ON public.reviews FOR ALL USING (public.is_admin());
+
+-- 11. Coupons Policies
+DROP POLICY IF EXISTS "Public active coupons read" ON public.coupons;
+CREATE POLICY "Public active coupons read" ON public.coupons FOR SELECT USING (is_active = true OR public.is_admin());
+DROP POLICY IF EXISTS "Admins manage coupons" ON public.coupons;
+CREATE POLICY "Admins manage coupons" ON public.coupons FOR ALL USING (public.is_admin());
 
 -- INITIAL SEED DATA
 INSERT INTO public.store_profile (id, store_name, tagline, description, email, phone, whatsapp, address, city, state, pincode, business_hours)

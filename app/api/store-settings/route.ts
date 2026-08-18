@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StoreSettings } from '@/lib/types';
 import { INITIAL_STORE_SETTINGS } from '@/lib/mockData';
+import { createServerClient } from '@/lib/supabase/server';
 import fs from 'fs';
 import path from 'path';
 
@@ -49,12 +50,34 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (body && typeof body === 'object') {
-      inMemorySettings = {
+      const updatedSettings: StoreSettings = {
         ...inMemorySettings,
         ...body,
         updated_at: new Date().toISOString(),
       };
+      inMemorySettings = updatedSettings;
       saveSettings(inMemorySettings);
+
+      // Sync to Supabase database using admin service role key to bypass RLS policies
+      try {
+        const supabaseAdmin = createServerClient();
+        const cleanSettings = {
+          id: updatedSettings.id || '00000000-0000-0000-0000-000000000001',
+          shipping_fee: Number(updatedSettings.shipping_fee || 99),
+          free_shipping_threshold: Number(updatedSettings.free_shipping_threshold || 1999),
+          tax_percentage: Number(updatedSettings.tax_percentage || 3),
+          cod_enabled: Boolean(updatedSettings.cod_enabled),
+          min_cod_value: Number(updatedSettings.min_cod_value || 299),
+          max_cod_value: Number(updatedSettings.max_cod_value || 25000),
+          upi_enabled: Boolean(updatedSettings.upi_enabled),
+          razorpay_test_mode: Boolean(updatedSettings.razorpay_test_mode),
+          updated_at: updatedSettings.updated_at,
+        };
+        await supabaseAdmin.from('store_settings').upsert([cleanSettings]);
+      } catch (e) {
+        console.warn('Server Supabase store_settings upsert note:', e);
+      }
+
       return NextResponse.json({ success: true, settings: inMemorySettings });
     }
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -62,3 +85,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 });
   }
 }
+

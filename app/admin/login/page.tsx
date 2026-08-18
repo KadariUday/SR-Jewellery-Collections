@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Gem, Lock, Mail, Eye, EyeOff, ShieldCheck, AlertCircle, ArrowRight, Loader2, KeyRound } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { supabase } from '@/lib/supabase/client';
 
 export default function DedicatedAdminLoginPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function DedicatedAdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -29,43 +30,48 @@ export default function DedicatedAdminLoginPage() {
 
     setLoading(true);
 
-    setTimeout(() => {
-      // Check saved admin credentials or default admin access
-      let savedAdminEmail = 'sushmitha.admin@srjewellery.com';
-      try {
-        const saved = localStorage.getItem('srj_admin_profile');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.email) savedAdminEmail = parsed.email.toLowerCase();
-        }
-      } catch (err) {}
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: password,
+      });
 
-      const isAdminValid =
-        cleanEmail === savedAdminEmail ||
-        cleanEmail.includes('admin') ||
-        cleanEmail === 'admin@srjewellery.com';
-
-      if (isAdminValid && (password === 'admin123' || password.length >= 6)) {
-        // Set secure cookies for admin session
-        document.cookie = 'srj_admin_token=token_admin_verified_srj; path=/; max-age=86400';
-        document.cookie = 'srj_role=ADMIN; path=/; max-age=86400';
-
-        // Save admin session state
-        const adminProfile = {
-          full_name: 'Sushmitha Admin',
-          email: cleanEmail,
-          phone: '+91 98765 43210',
-          role: 'Store Manager',
-          last_login: new Date().toISOString(),
-        };
-        localStorage.setItem('srj_admin_profile', JSON.stringify(adminProfile));
-
-        router.push('/admin/dashboard');
-      } else {
-        setError('Access Denied: Invalid admin credentials. Customer accounts cannot access the Admin Portal.');
+      if (authError || !authData.user) {
+        setError(authError?.message || 'Access Denied: Invalid admin credentials.');
         setLoading(false);
+        return;
       }
-    }, 800);
+
+      // Query profile role from Supabase database
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role, full_name, phone')
+        .eq('id', authData.user.id)
+        .single();
+
+      const role = profileData?.role || authData.user.user_metadata?.role;
+      if (role !== 'ADMIN') {
+        await supabase.auth.signOut();
+        setError('Access Denied: Customer accounts cannot access the Admin Operations Portal.');
+        setLoading(false);
+        return;
+      }
+
+      document.cookie = 'srj_role=ADMIN; path=/; max-age=86400';
+      const adminProfile = {
+        id: authData.user.id,
+        full_name: profileData?.full_name || 'Admin',
+        email: cleanEmail,
+        phone: profileData?.phone || '',
+        role: 'ADMIN',
+        last_login: new Date().toISOString(),
+      };
+      localStorage.setItem('srj_admin_profile', JSON.stringify(adminProfile));
+      router.push('/admin/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Authentication error.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -110,7 +116,7 @@ export default function DedicatedAdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="sushmitha.admin@srjewellery.com"
+                placeholder="admin@srjewellerycollections.com"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-gold-400 transition"
               />
             </div>
@@ -124,7 +130,7 @@ export default function DedicatedAdminLoginPage() {
               </label>
               <button
                 type="button"
-                onClick={() => alert("Password reset link dispatched to master admin email.")}
+                onClick={() => alert("Please reset admin passwords directly in your Supabase Authentication console.")}
                 className="text-[11px] text-gold-400 hover:underline"
               >
                 Forgot password?
@@ -154,7 +160,7 @@ export default function DedicatedAdminLoginPage() {
           {/* Security Banner Note */}
           <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-[11px] text-slate-400 flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-gold-400 shrink-0" />
-            <span>Restricted Access: Only authorized store managers & staff can log in.</span>
+            <span>Restricted Access: Only verified database ADMIN users can log in.</span>
           </div>
 
           {/* Submit Button */}

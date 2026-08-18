@@ -106,7 +106,7 @@ const safeSetLocalStorage = (key: string, value: any) => {
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [customers, setCustomers] = useState<UserProfile[]>(INITIAL_CUSTOMERS);
   const [addresses, setAddresses] = useState<CustomerAddress[]>(INITIAL_CUSTOMER_ADDRESSES);
@@ -164,6 +164,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setProducts(initialProductsList);
       safeSetLocalStorage('srj_products', initialProductsList);
+
+      const savedCategories = localStorage.getItem('srj_categories');
+      if (savedCategories) {
+        try {
+          const parsed = JSON.parse(savedCategories);
+          if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
+        } catch (e) {}
+      }
 
       const savedOrders = localStorage.getItem('srj_orders');
       if (savedOrders) {
@@ -228,6 +236,45 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
 
+      // Fetch server backup for store profile and settings
+      try {
+        fetch('/api/store-profile')
+          .then((r) => r.json())
+          .then((d) => {
+            if (d && d.profile && d.profile.phone) {
+              setStoreProfile((prev) => {
+                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+                const apiTime = d.profile.updated_at ? new Date(d.profile.updated_at).getTime() : 0;
+                const isInitial = !prev || prev.updated_at === INITIAL_STORE_PROFILE.updated_at;
+                if (apiTime > prevTime || isInitial) {
+                  safeSetLocalStorage('srj_store_profile', d.profile);
+                  return d.profile;
+                }
+                return prev;
+              });
+            }
+          })
+          .catch(() => {});
+
+        fetch('/api/store-settings')
+          .then((r) => r.json())
+          .then((d) => {
+            if (d && d.settings) {
+              setStoreSettings((prev) => {
+                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+                const apiTime = d.settings.updated_at ? new Date(d.settings.updated_at).getTime() : 0;
+                const isInitial = !prev || prev.updated_at === INITIAL_STORE_SETTINGS.updated_at;
+                if (apiTime > prevTime || isInitial) {
+                  safeSetLocalStorage('srj_store_settings', d.settings);
+                  return d.settings;
+                }
+                return prev;
+              });
+            }
+          })
+          .catch(() => {});
+      } catch (e) {}
+
       // 1. Fetch live products from Supabase
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
@@ -244,8 +291,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         supabase.from('store_profile').select('*').limit(1).then(({ data, error }) => {
           if (!error && data && data.length > 0) {
             const supaProfile = data[0] as StoreProfile;
-            setStoreProfile(supaProfile);
-            safeSetLocalStorage('srj_store_profile', supaProfile);
+            setStoreProfile((prev) => {
+              const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+              const supaTime = supaProfile.updated_at ? new Date(supaProfile.updated_at).getTime() : 0;
+              const isInitial = !prev || prev.updated_at === INITIAL_STORE_PROFILE.updated_at;
+              if (supaTime > prevTime || (isInitial && supaTime > 0)) {
+                safeSetLocalStorage('srj_store_profile', supaProfile);
+                return supaProfile;
+              }
+              return prev;
+            });
           }
         });
       } catch (e) {}
@@ -255,8 +310,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         supabase.from('store_settings').select('*').limit(1).then(({ data, error }) => {
           if (!error && data && data.length > 0) {
             const supaSettings = data[0] as StoreSettings;
-            setStoreSettings(supaSettings);
-            safeSetLocalStorage('srj_store_settings', supaSettings);
+            setStoreSettings((prev) => {
+              const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+              const supaTime = supaSettings.updated_at ? new Date(supaSettings.updated_at).getTime() : 0;
+              const isInitial = !prev || prev.updated_at === INITIAL_STORE_SETTINGS.updated_at;
+              if (supaTime > prevTime || (isInitial && supaTime > 0)) {
+                safeSetLocalStorage('srj_store_settings', supaSettings);
+                return supaSettings;
+              }
+              return prev;
+            });
           }
         });
       } catch (e) {}
@@ -320,8 +383,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           (payload) => {
             if (payload.new) {
               const updatedProf = payload.new as StoreProfile;
-              setStoreProfile(updatedProf);
-              safeSetLocalStorage('srj_store_profile', updatedProf);
+              setStoreProfile((prev) => {
+                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+                const newTime = updatedProf.updated_at ? new Date(updatedProf.updated_at).getTime() : 0;
+                if (newTime >= prevTime) {
+                  safeSetLocalStorage('srj_store_profile', updatedProf);
+                  return updatedProf;
+                }
+                return prev;
+              });
             }
           }
         )
@@ -331,8 +401,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           (payload) => {
             if (payload.new) {
               const updatedSettings = payload.new as StoreSettings;
-              setStoreSettings(updatedSettings);
-              safeSetLocalStorage('srj_store_settings', updatedSettings);
+              setStoreSettings((prev) => {
+                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
+                const newTime = updatedSettings.updated_at ? new Date(updatedSettings.updated_at).getTime() : 0;
+                if (newTime >= prevTime) {
+                  safeSetLocalStorage('srj_store_settings', updatedSettings);
+                  return updatedSettings;
+                }
+                return prev;
+              });
             }
           }
         )
@@ -760,8 +837,8 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     free_shipping_threshold: Number(s.free_shipping_threshold || 1999),
     tax_percentage: Number(s.tax_percentage || 3),
     cod_enabled: Boolean(s.cod_enabled),
-    min_cod_amount: Number(s.min_cod_amount || 299),
-    max_cod_amount: Number(s.max_cod_amount || 25000),
+    min_cod_value: Number(s.min_cod_value || 299),
+    max_cod_value: Number(s.max_cod_value || 25000),
     upi_enabled: Boolean(s.upi_enabled),
     razorpay_test_mode: Boolean(s.razorpay_test_mode),
     updated_at: s.updated_at || new Date().toISOString(),
@@ -851,6 +928,20 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
       safeSetLocalStorage('srj_messages', updated);
       return updated;
     });
+
+    try {
+      supabase.from('contact_messages').insert([{
+        name: newMsg.name,
+        email: newMsg.email,
+        phone: newMsg.phone || null,
+        subject: newMsg.subject || null,
+        message: newMsg.message,
+        status: 'NEW',
+      }]).then(({ error }) => {
+        if (error) console.warn('Supabase contact_message insert note:', error.message);
+      });
+    } catch (e) {}
+
     logActivity('ADD_CONTACT_MESSAGE', 'MESSAGE', newMsg.id, `New contact message received from ${newMsg.name} (${newMsg.email})`);
   };
 
