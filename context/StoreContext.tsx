@@ -228,146 +228,68 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
 
-      // Fetch live products from Next.js server API (/api/products) for cross-device sync
-      try {
-        fetch('/api/products')
-          .then((res) => res.json())
-          .then((apiData) => {
-            if (apiData && Array.isArray(apiData.products) && apiData.products.length > 0) {
-              const apiProducts = apiData.products as Product[];
-              setProducts((prevLocalProducts) => {
-                const mergedMap = new Map<string, Product>();
-                // Load local products first
-                prevLocalProducts.forEach((lp) => mergedMap.set(lp.id, lp));
-
-                // Merge API products prioritizing server updated prices
-                apiProducts.forEach((ap) => {
-                  const existing = mergedMap.get(ap.id);
-                  if (!existing) {
-                    mergedMap.set(ap.id, ap);
-                  } else {
-                    const localTime = new Date(existing.updated_at || 0).getTime();
-                    const apiTime = new Date(ap.updated_at || 0).getTime();
-                    if (apiTime >= localTime) {
-                      mergedMap.set(ap.id, ap);
-                    }
-                  }
-                });
-
-                const mergedList = Array.from(mergedMap.values());
-                safeSetLocalStorage('srj_products', mergedList);
-                return mergedList;
-              });
-            }
-          })
-          .catch((err) => console.warn('Note: API products fetch:', err));
-      } catch (e) {}
-
-      // Fetch live products from Supabase if available
+      // 1. Fetch live products from Supabase
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
           if (!error && data && data.length > 0) {
             const supaProducts = data as Product[];
-            const mergedMap = new Map<string, Product>();
-
-            // Supabase live database products take highest priority
-            supaProducts.forEach((sp) => mergedMap.set(sp.id, sp));
-
-            setProducts((prevLocalProducts) => {
-              // Preserve any locally created unsynced products
-              prevLocalProducts.forEach((lp) => {
-                if (!mergedMap.has(lp.id)) {
-                  mergedMap.set(lp.id, lp);
-                }
-              });
-
-              const mergedList = Array.from(mergedMap.values());
-              safeSetLocalStorage('srj_products', mergedList);
-              return mergedList;
-            });
+            setProducts(supaProducts);
+            safeSetLocalStorage('srj_products', supaProducts);
           }
         });
+      } catch (e) {}
 
-        // Fetch live store profile from Next.js API (/api/store-profile)
-        try {
-          fetch('/api/store-profile')
-            .then((res) => res.json())
-            .then((apiRes) => {
-              if (apiRes && apiRes.profile && apiRes.profile.phone) {
-                setStoreProfile((prev) => {
-                  const apiTime = new Date(apiRes.profile.updated_at || 0).getTime();
-                  const localTime = new Date(prev.updated_at || 0).getTime();
-                  if (apiTime >= localTime) {
-                    safeSetLocalStorage('srj_store_profile', apiRes.profile);
-                    return apiRes.profile as StoreProfile;
-                  }
-                  return prev;
-                });
-              }
-            })
-            .catch((err) => console.warn('API profile fetch note:', err));
-        } catch (e) {}
-
-        // Fetch live store profile from Supabase
-        supabase.from('store_profile').select('*').single().then(({ data, error }) => {
-          if (!error && data) {
-            setStoreProfile((prev) => {
-              const supaTime = new Date(data.updated_at || 0).getTime();
-              const localTime = new Date(prev.updated_at || 0).getTime();
-              if (supaTime >= localTime) {
-                safeSetLocalStorage('srj_store_profile', data);
-                return data as StoreProfile;
-              }
-              return prev;
-            });
+      // 2. Fetch live store profile from Supabase
+      try {
+        supabase.from('store_profile').select('*').limit(1).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const supaProfile = data[0] as StoreProfile;
+            setStoreProfile(supaProfile);
+            safeSetLocalStorage('srj_store_profile', supaProfile);
           }
         });
+      } catch (e) {}
 
-        // Fetch live store settings from Next.js API (/api/store-settings)
-        try {
-          fetch('/api/store-settings')
-            .then((res) => res.json())
-            .then((apiRes) => {
-              if (apiRes && apiRes.settings) {
-                setStoreSettings((prev) => {
-                  const apiTime = new Date(apiRes.settings.updated_at || 0).getTime();
-                  const localTime = new Date(prev.updated_at || 0).getTime();
-                  if (apiTime >= localTime) {
-                    safeSetLocalStorage('srj_store_settings', apiRes.settings);
-                    return apiRes.settings as StoreSettings;
-                  }
-                  return prev;
-                });
-              }
-            })
-            .catch((err) => console.warn('API settings fetch note:', err));
-        } catch (e) {}
-
-        // Fetch live store settings from Supabase
-        supabase.from('store_settings').select('*').single().then(({ data, error }) => {
-          if (!error && data) {
-            setStoreSettings((prev) => {
-              const supaTime = new Date(data.updated_at || 0).getTime();
-              const localTime = new Date(prev.updated_at || 0).getTime();
-              if (supaTime >= localTime) {
-                safeSetLocalStorage('srj_store_settings', data);
-                return data as StoreSettings;
-              }
-              return prev;
-            });
+      // 3. Fetch live store settings from Supabase
+      try {
+        supabase.from('store_settings').select('*').limit(1).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const supaSettings = data[0] as StoreSettings;
+            setStoreSettings(supaSettings);
+            safeSetLocalStorage('srj_store_settings', supaSettings);
           }
         });
-      } catch (e) { }
+      } catch (e) {}
+
+      // 4. Fetch live categories from Supabase
+      try {
+        supabase.from('categories').select('*').then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setCategories(data as Category[]);
+            safeSetLocalStorage('srj_categories', data);
+          }
+        });
+      } catch (e) {}
+
+      // 5. Fetch live orders from Supabase
+      try {
+        supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setOrders(data as Order[]);
+            safeSetLocalStorage('srj_orders', data);
+          }
+        });
+      } catch (e) {}
     } catch (e) {
       console.error("Error loading persisted store context", e);
     }
   }, []);
 
-  // Supabase Realtime Global Subscription for instant live cross-device updates
+  // Supabase Realtime Global Subscriptions for ALL admin tables
   useEffect(() => {
     try {
       const channel = supabase
-        .channel('public:products')
+        .channel('public:schema_changes')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'products' },
@@ -387,6 +309,44 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setProducts((prev) => {
                 const updatedList = prev.filter((p) => p.id !== deletedId);
                 safeSetLocalStorage('srj_products', updatedList);
+                return updatedList;
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'store_profile' },
+          (payload) => {
+            if (payload.new) {
+              const updatedProf = payload.new as StoreProfile;
+              setStoreProfile(updatedProf);
+              safeSetLocalStorage('srj_store_profile', updatedProf);
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'store_settings' },
+          (payload) => {
+            if (payload.new) {
+              const updatedSettings = payload.new as StoreSettings;
+              setStoreSettings(updatedSettings);
+              safeSetLocalStorage('srj_store_settings', updatedSettings);
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          (payload) => {
+            if (payload.new) {
+              const updatedOrder = payload.new as Order;
+              setOrders((prev) => {
+                const map = new Map(prev.map((o) => [o.id, o]));
+                map.set(updatedOrder.id, updatedOrder);
+                const updatedList = Array.from(map.values());
+                safeSetLocalStorage('srj_orders', updatedList);
                 return updatedList;
               });
             }
