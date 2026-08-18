@@ -359,9 +359,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // Sync to Supabase via upsert
+    const { category_name, ...cleanItem } = newProduct;
     try {
-      supabase.from('products').upsert([newProduct]).then(({ error }) => {
-        if (error) console.warn('Supabase product insert note:', error.message);
+      supabase.from('products').upsert([cleanItem]).then(({ error }) => {
+        if (error) console.error('Supabase product insert note:', error.message);
       });
     } catch (e) {}
 
@@ -388,9 +389,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Sync to Supabase via upsert
     if (updatedItem) {
+      const { category_name, ...cleanItem } = updatedItem;
       try {
-        supabase.from('products').upsert([updatedItem]).then(({ error }) => {
-          if (error) console.warn('Supabase product update note:', error.message);
+        supabase.from('products').upsert([cleanItem]).then(({ error }) => {
+          if (error) {
+            console.error('Supabase product update note:', error.message);
+          } else {
+            console.log('Product price successfully synced to Supabase for ID:', id);
+          }
         });
       } catch (e) {}
     }
