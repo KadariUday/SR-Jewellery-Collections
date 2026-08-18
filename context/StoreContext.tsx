@@ -228,6 +228,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
 
+      // Fetch live products from Next.js server API (/api/products) for cross-device sync
+      try {
+        fetch('/api/products')
+          .then((res) => res.json())
+          .then((apiData) => {
+            if (apiData && Array.isArray(apiData.products) && apiData.products.length > 0) {
+              const apiProducts = apiData.products as Product[];
+              setProducts((prevLocalProducts) => {
+                const mergedMap = new Map<string, Product>();
+                // Load local products first
+                prevLocalProducts.forEach((lp) => mergedMap.set(lp.id, lp));
+
+                // Merge API products prioritizing server updated prices
+                apiProducts.forEach((ap) => {
+                  const existing = mergedMap.get(ap.id);
+                  if (!existing) {
+                    mergedMap.set(ap.id, ap);
+                  } else {
+                    const localTime = new Date(existing.updated_at || 0).getTime();
+                    const apiTime = new Date(ap.updated_at || 0).getTime();
+                    if (apiTime >= localTime) {
+                      mergedMap.set(ap.id, ap);
+                    }
+                  }
+                });
+
+                const mergedList = Array.from(mergedMap.values());
+                safeSetLocalStorage('srj_products', mergedList);
+                return mergedList;
+              });
+            }
+          })
+          .catch((err) => console.warn('Note: API products fetch:', err));
+      } catch (e) {}
+
       // Fetch live products from Supabase if available
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
@@ -358,6 +393,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.dispatchEvent(new Event('srj_products_updated'));
     }
 
+    // Sync to server-side API route for cross-device sync
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ADD', product: newProduct }),
+      }).catch((e) => console.warn('API add product note:', e));
+    } catch (e) {}
+
     // Sync to Supabase via upsert
     const { category_name, ...cleanItem } = newProduct;
     try {
@@ -387,6 +431,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.dispatchEvent(new Event('srj_products_updated'));
     }
 
+    // Sync to server-side API route for cross-device sync
+    if (updatedItem) {
+      try {
+        fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'UPDATE', product: updatedItem }),
+        }).catch((e) => console.warn('API update product note:', e));
+      } catch (e) {}
+    }
+
     // Sync to Supabase via upsert
     if (updatedItem) {
       const { category_name, ...cleanItem } = updatedItem;
@@ -410,12 +465,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
+    // Sync to server-side API route
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'DELETE', id }),
+      }).catch((e) => console.warn('API delete product note:', e));
+    } catch (e) {}
+
     // Sync to Supabase
     try {
       supabase.from('products').delete().eq('id', id).then(({ error }) => {
         if (error) console.warn('Supabase product delete note:', error.message);
       });
-    } catch (e) { }
+    } catch (e) {}
 
     logActivity('DELETE_PRODUCT', 'PRODUCT', id, `Deleted product "${prod?.name || id}"`);
   };
