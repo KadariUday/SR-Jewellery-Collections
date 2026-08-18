@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Product } from '@/lib/types';
 import { INITIAL_PRODUCTS } from '@/lib/mockData';
+import { createServerClient } from '@/lib/supabase/server';
 import fs from 'fs';
 import path from 'path';
 
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, product, products, id } = body;
+    const supabaseAdmin = createServerClient();
 
     if (action === 'UPDATE' && product) {
       const now = new Date().toISOString();
@@ -104,6 +106,14 @@ export async function POST(req: NextRequest) {
       }
 
       saveProductsToServer(inMemoryProducts);
+
+      // Sync directly to Supabase DB via Service Role Client
+      try {
+        await supabaseAdmin.from('products').upsert([updatedProduct]);
+      } catch (e) {
+        console.warn('Supabase product upsert note:', e);
+      }
+
       return NextResponse.json({ success: true, products: inMemoryProducts });
     }
 
@@ -112,18 +122,39 @@ export async function POST(req: NextRequest) {
       const newProduct = { ...product, created_at: now, updated_at: now };
       inMemoryProducts = [newProduct, ...inMemoryProducts];
       saveProductsToServer(inMemoryProducts);
+
+      // Sync directly to Supabase DB via Service Role Client
+      try {
+        await supabaseAdmin.from('products').upsert([newProduct]);
+      } catch (e) {
+        console.warn('Supabase product insert note:', e);
+      }
+
       return NextResponse.json({ success: true, products: inMemoryProducts });
     }
 
     if (action === 'DELETE' && id) {
       inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
       saveProductsToServer(inMemoryProducts);
+
+      // Delete from Supabase DB via Service Role Client
+      try {
+        await supabaseAdmin.from('products').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase product delete note:', e);
+      }
+
       return NextResponse.json({ success: true, products: inMemoryProducts });
     }
 
     if (action === 'SET_ALL' && Array.isArray(products)) {
       inMemoryProducts = products;
       saveProductsToServer(inMemoryProducts);
+
+      try {
+        await supabaseAdmin.from('products').upsert(products);
+      } catch (e) {}
+
       return NextResponse.json({ success: true, products: inMemoryProducts });
     }
 
