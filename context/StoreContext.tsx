@@ -52,7 +52,7 @@ interface StoreContextType {
   currentUser: UserProfile | null;
   coupons: Coupon[];
   reviews: ProductReview[];
-  
+
   // User Session Actions
   loginCustomer: (user: Partial<UserProfile>) => UserProfile;
   logoutCustomer: () => void;
@@ -73,7 +73,7 @@ interface StoreContextType {
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   adjustStock: (productId: string, newStock: number, reason: string) => void;
-  
+
   // Order actions
   addOrder: (order: Omit<Order, 'id' | 'created_at' | 'updated_at'>) => Order;
   updateOrderStatus: (
@@ -83,11 +83,11 @@ interface StoreContextType {
     courierName?: string,
     trackingNumber?: string
   ) => void;
-  
+
   // Profile & settings actions
   updateStoreProfile: (updates: Partial<StoreProfile>) => void;
   updateStoreSettings: (updates: Partial<StoreSettings>) => void;
-  
+
   // Customer & notes actions
   addCustomerNote: (customerId: string, noteText: string) => void;
   addContactMessage: (msg: Omit<ContactMessage, 'id' | 'created_at' | 'status'>) => void;
@@ -243,7 +243,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             safeSetLocalStorage('srj_store_settings', data);
           }
         });
-      } catch (e) {}
+      } catch (e) { }
     } catch (e) {
       console.error("Error loading persisted store context", e);
     }
@@ -300,9 +300,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
-    // Sync to Supabase
+    // Sync to Supabase via upsert
     try {
-      supabase.from('products').insert([newProduct]).then(({ error }) => {
+      supabase.from('products').upsert([newProduct]).then(({ error }) => {
         if (error) console.warn('Supabase product insert note:', error.message);
       });
     } catch (e) {}
@@ -312,21 +312,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
+    const now = new Date().toISOString();
+    let updatedItem: Product | undefined;
     const updated = products.map((p) => {
       if (p.id === id) {
-        return { ...p, ...updates, updated_at: new Date().toISOString() };
+        updatedItem = { ...p, ...updates, updated_at: now };
+        return updatedItem;
       }
       return p;
     });
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
-    // Sync to Supabase
-    try {
-      supabase.from('products').update(updates).eq('id', id).then(({ error }) => {
-        if (error) console.warn('Supabase product update note:', error.message);
-      });
-    } catch (e) {}
+    // Sync to Supabase via upsert
+    if (updatedItem) {
+      try {
+        supabase.from('products').upsert([updatedItem]).then(({ error }) => {
+          if (error) console.warn('Supabase product update note:', error.message);
+        });
+      } catch (e) {}
+    }
 
     logActivity('UPDATE_PRODUCT', 'PRODUCT', id, `Updated product details for ID ${id}`);
   };
@@ -342,7 +347,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.from('products').delete().eq('id', id).then(({ error }) => {
         if (error) console.warn('Supabase product delete note:', error.message);
       });
-    } catch (e) {}
+    } catch (e) { }
 
     logActivity('DELETE_PRODUCT', 'PRODUCT', id, `Deleted product "${prod?.name || id}"`);
   };
@@ -495,7 +500,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.from('store_profile').upsert([updated]).then(({ error }) => {
         if (error) console.warn('Supabase store_profile update note:', error.message);
       });
-    } catch (e) {}
+    } catch (e) { }
 
     logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile (Phone, WhatsApp, Address, Socials)');
   };
@@ -510,7 +515,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       supabase.from('store_settings').upsert([updated]).then(({ error }) => {
         if (error) console.warn('Supabase store_settings update note:', error.message);
       });
-    } catch (e) {}
+    } catch (e) { }
 
     logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
   };

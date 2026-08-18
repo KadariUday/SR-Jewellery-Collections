@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '@/lib/types';
+import { useStore } from '@/context/StoreContext';
 
 export interface CartItem {
   product: Product;
@@ -38,6 +39,7 @@ const safeSetLocalStorage = (key: string, value: any) => {
 };
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { products } = useStore();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number } | null>(null);
@@ -54,6 +56,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Error loading cart/wishlist", e);
     }
   }, []);
+
+  // Synchronize cart items with updated product prices from StoreContext
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+    setCart((prevCart) => {
+      let hasChanges = false;
+      const updatedCart = prevCart.map((item) => {
+        const matchingProduct = products.find((p) => p.id === item.product.id);
+        if (
+          matchingProduct &&
+          (matchingProduct.selling_price !== item.product.selling_price ||
+            matchingProduct.original_price !== item.product.original_price ||
+            matchingProduct.name !== item.product.name)
+        ) {
+          hasChanges = true;
+          return { ...item, product: matchingProduct };
+        }
+        return item;
+      });
+
+      if (hasChanges) {
+        safeSetLocalStorage('srj_cart', updatedCart);
+        return updatedCart;
+      }
+      return prevCart;
+    });
+  }, [products]);
 
   const saveCart = (items: CartItem[]) => {
     setCart(items);
