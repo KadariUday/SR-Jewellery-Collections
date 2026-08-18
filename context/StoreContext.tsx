@@ -288,11 +288,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
 
+        // Fetch live store profile from Next.js API (/api/store-profile)
+        try {
+          fetch('/api/store-profile')
+            .then((res) => res.json())
+            .then((apiRes) => {
+              if (apiRes && apiRes.profile && apiRes.profile.phone) {
+                setStoreProfile((prev) => {
+                  const apiTime = new Date(apiRes.profile.updated_at || 0).getTime();
+                  const localTime = new Date(prev.updated_at || 0).getTime();
+                  if (apiTime >= localTime) {
+                    safeSetLocalStorage('srj_store_profile', apiRes.profile);
+                    return apiRes.profile as StoreProfile;
+                  }
+                  return prev;
+                });
+              }
+            })
+            .catch((err) => console.warn('API profile fetch note:', err));
+        } catch (e) {}
+
         // Fetch live store profile from Supabase
         supabase.from('store_profile').select('*').single().then(({ data, error }) => {
           if (!error && data) {
-            setStoreProfile(data as StoreProfile);
-            safeSetLocalStorage('srj_store_profile', data);
+            setStoreProfile((prev) => {
+              const supaTime = new Date(data.updated_at || 0).getTime();
+              const localTime = new Date(prev.updated_at || 0).getTime();
+              if (supaTime >= localTime) {
+                safeSetLocalStorage('srj_store_profile', data);
+                return data as StoreProfile;
+              }
+              return prev;
+            });
           }
         });
 
@@ -723,6 +750,15 @@ const prepareProductForSupabase = (p: Product) => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('srj_profile_updated'));
     }
+
+    // Sync to Next.js API route for server-side cross-device persistence
+    try {
+      fetch('/api/store-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('API store profile sync note:', e));
+    } catch (e) {}
 
     // Sync to Supabase
     try {
