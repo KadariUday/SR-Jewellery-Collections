@@ -236,20 +236,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const supaProducts = data as Product[];
               const productMap = new Map<string, Product>();
 
-              // Keep local products (including edited prices) first
+              // Local stored products (including admin price edits) take precedence
               prevLocalProducts.forEach((p) => productMap.set(p.id, p));
 
-              // Only update from Supabase if Supabase item is strictly newer
+              // Only add products from Supabase if missing from local state
               supaProducts.forEach((sp) => {
-                const localItem = productMap.get(sp.id);
-                if (!localItem) {
+                if (!productMap.has(sp.id)) {
                   productMap.set(sp.id, sp);
-                } else {
-                  const localTime = new Date(localItem.updated_at || 0).getTime();
-                  const supaTime = new Date(sp.updated_at || 0).getTime();
-                  if (supaTime > localTime) {
-                    productMap.set(sp.id, sp);
-                  }
                 }
               });
 
@@ -279,6 +272,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (e) {
       console.error("Error loading persisted store context", e);
     }
+  }, []);
+
+  // Real-time cross-tab and same-window synchronization for products
+  useEffect(() => {
+    const syncProducts = () => {
+      try {
+        const saved = localStorage.getItem('srj_products');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProducts(parsed);
+          }
+        }
+      } catch (e) {}
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'srj_products') {
+        syncProducts();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('srj_products_updated', syncProducts);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('srj_products_updated', syncProducts);
+    };
   }, []);
 
   const loginCustomer = (userData: Partial<UserProfile>): UserProfile => {
@@ -332,6 +354,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_products_updated'));
+    }
+
     // Sync to Supabase via upsert
     try {
       supabase.from('products').upsert([newProduct]).then(({ error }) => {
@@ -355,6 +381,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_products_updated'));
+    }
 
     // Sync to Supabase via upsert
     if (updatedItem) {
