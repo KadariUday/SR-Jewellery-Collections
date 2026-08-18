@@ -136,11 +136,18 @@ export default function CustomerOrdersPage() {
                   ))}
                 </div>
 
-                <div className="flex justify-between items-center pt-2 border-t border-cream-200">
-                  <span className="font-bold text-slate-900 text-sm">Total Paid: {formatCurrency(ord.total_amount)}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-cream-200 gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">Total Paid: {formatCurrency(ord.total_amount)} ({ord.payment_method})</span>
+                    {(ord.upi_utr || ord.notes?.includes('UTR')) && (
+                      <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        UTR: {ord.upi_utr || ord.notes?.replace('UPI UTR Ref: ', '')}
+                      </span>
+                    )}
+                  </div>
                   <Link
                     href={`/track-order?orderNumber=${ord.order_number}`}
-                    className="px-4 py-2 bg-slate-900 text-gold-400 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:bg-slate-800 transition"
+                    className="px-4 py-2 bg-slate-900 text-gold-400 font-bold rounded-xl text-xs flex items-center gap-1.5 hover:bg-slate-800 transition w-fit"
                   >
                     <Truck className="w-3.5 h-3.5" /> Live Tracking
                   </Link>

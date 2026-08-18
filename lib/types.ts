@@ -168,6 +168,7 @@ export interface Order {
   delivery_details?: OrderDeliveryDetails;
   status_history?: OrderStatusHistory[];
   notes?: string;
+  upi_utr?: string;
   created_at: string;
   updated_at: string;
 }

@@ -53,6 +53,11 @@ function OrderConfirmationContent() {
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Details</span>
               <p className="font-bold text-slate-800">{order.payment_method} ({order.payment_status})</p>
+              {(order.upi_utr || order.notes?.includes('UTR')) && (
+                <p className="text-[11px] font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 w-fit mt-1">
+                  UTR: {order.upi_utr || order.notes?.replace('UPI UTR Ref: ', '')}
+                </p>
+              )}
               <p className="text-base font-bold text-gold-600 mt-1">Total: {formatCurrency(order.total_amount)}</p>
             </div>
           </div>

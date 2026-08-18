@@ -114,6 +114,10 @@ export default function CheckoutPage() {
 
     setTimeout(() => {
       const sanitizedUtr = sanitizeUtr(upiRefNumber);
+      if (paymentMethod === 'UPI' && (!sanitizedUtr || sanitizedUtr.length < 10)) {
+        alert('Mandatory UTR Required: Please enter your 12-digit UPI Transaction Ref / UTR number from GPay, PhonePe, or Paytm.');
+        return;
+      }
 
       let activeAddress =
         selectedAddressId !== 'new'
@@ -155,6 +159,7 @@ export default function CheckoutPage() {
         payment_status: paymentMethod === 'UPI' ? 'SUCCESS' : 'PENDING',
         order_status: 'ORDER PLACED',
         delivery_address: activeAddress,
+        upi_utr: sanitizedUtr || undefined,
         notes: sanitizedUtr ? `UPI UTR Ref: ${sanitizedUtr}` : undefined,
         items: cart.map((c) => ({
           id: `item-${Date.now()}-${Math.random()}`,
@@ -458,19 +463,29 @@ export default function CheckoutPage() {
                 </button>
               </div>
 
-              {/* Transaction UTR Entry */}
+              {/* Transaction UTR Entry (MANDATORY) */}
               <div className="text-left space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  UPI UTR / Ref Number (Optional)
+                <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                  <span>12-Digit UPI UTR / Ref ID</span>
+                  <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">REQUIRED *</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={upiRefNumber}
                   onChange={(e) => setUpiRefNumber(e.target.value)}
-                  placeholder="e.g. 423456789012"
-                  className="w-full px-3.5 py-2.5 bg-cream-50 border border-cream-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-gold-400"
+                  placeholder="Enter 12-digit UTR (e.g. 423456789012)"
+                  className={`w-full px-3.5 py-2.5 bg-cream-50 border ${
+                    upiRefNumber && upiRefNumber.trim().length < 10 ? 'border-rose-400 focus:ring-rose-400' : 'border-cream-300 focus:ring-gold-400'
+                  } rounded-xl text-xs font-mono font-bold text-slate-900 shadow-inner`}
                 />
-                <span className="text-[10px] text-slate-400 block">Enter 12-digit UTR from GPay/PhonePe payment receipt for faster verification.</span>
+                <span className="text-[10px] text-slate-500 block font-medium">
+                  {upiRefNumber.trim().length < 10 ? (
+                    <span className="text-rose-600 font-bold">⚠️ Enter valid 12-digit UTR from your GPay / PhonePe / Paytm receipt to submit.</span>
+                  ) : (
+                    <span className="text-emerald-600 font-bold">✓ 12-Digit UTR Entered</span>
+                  )}
+                </span>
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -484,8 +499,8 @@ export default function CheckoutPage() {
                 <button
                   type="button"
                   onClick={processOrderPlacement}
-                  disabled={loading}
-                  className="flex-1 py-3 bg-gold-gradient text-slate-950 font-bold rounded-xl shadow-md hover:opacity-95 transition text-xs flex items-center justify-center gap-2"
+                  disabled={loading || upiRefNumber.trim().length < 10}
+                  className="flex-1 py-3 bg-gold-gradient text-slate-950 font-bold rounded-xl shadow-md hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition text-xs flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -493,7 +508,7 @@ export default function CheckoutPage() {
                       <span>Confirming...</span>
                     </>
                   ) : (
-                    <span>I Have Completed Payment</span>
+                    <span>Submit & Confirm Order</span>
                   )}
                 </button>
               </div>

@@ -30,6 +30,7 @@ export default function AdminPaymentsPage() {
         status: o.payment_status,
         verified: o.payment_status === 'SUCCESS',
         created_at: o.created_at,
+        upi_utr: o.upi_utr || o.notes?.replace('UPI UTR Ref: ', ''),
       }));
 
     return [...payments, ...orderDerivedPayments].sort(
@@ -159,10 +160,16 @@ export default function AdminPaymentsPage() {
                     <td className="p-3.5 font-semibold text-slate-800">{pay.customer_name || 'Customer'}</td>
                     <td className="p-3.5 font-bold">
                       <span className={`px-2 py-0.5 rounded font-mono text-[10px] ${
-                        pay.payment_method === 'UPI' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
+                        pay.payment_method === 'UPI' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
                       }`}>
                         {pay.payment_method}
                       </span>
+                      {(pay as any).upi_utr && (
+                        <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-900 px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1 mt-1 w-fit">
+                          <span className="font-sans text-[9px] uppercase font-semibold text-amber-700">UTR:</span>
+                          {(pay as any).upi_utr}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3.5 font-bold text-slate-900">{formatCurrency(pay.amount)}</td>
                     <td className="p-3.5">

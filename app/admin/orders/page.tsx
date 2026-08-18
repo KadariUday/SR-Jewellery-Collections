@@ -211,7 +211,7 @@ export default function AdminOrdersPage() {
                       <td className="p-3.5">
                         <div className="flex flex-col gap-1 items-start">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            o.payment_method === 'UPI' ? 'bg-gold-100 text-gold-800' : 'bg-emerald-100 text-emerald-800'
+                            o.payment_method === 'UPI' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
                           }`}>
                             {o.payment_method}
                           </span>
@@ -220,6 +220,12 @@ export default function AdminOrdersPage() {
                           }`}>
                             {o.payment_status}
                           </span>
+                          {(o.upi_utr || o.notes?.includes('UTR')) && (
+                            <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-900 px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1 mt-0.5" title="Click to copy UTR">
+                              <span className="font-sans text-[9px] uppercase font-semibold text-amber-700">UTR:</span>
+                              {o.upi_utr || o.notes?.replace('UPI UTR Ref: ', '')}
+                            </span>
+                          )}
                         </div>
                       </td>
 
