@@ -376,6 +376,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     safeSetLocalStorage('srj_addresses', updated);
   };
 
+const prepareProductForSupabase = (p: Product) => {
+  return {
+    id: String(p.id),
+    name: String(p.name || ''),
+    sku: String(p.sku || ''),
+    slug: String(p.slug || ''),
+    category_id: String(p.category_id || ''),
+    description: String(p.description || ''),
+    original_price: Number(p.original_price || 0),
+    selling_price: Number(p.selling_price || 0),
+    discount_percentage: Number(p.discount_percentage || 0),
+    stock_quantity: Number(p.stock_quantity || 0),
+    low_stock_threshold: Number(p.low_stock_threshold || 5),
+    material: String(p.material || ''),
+    stone_type: String(p.stone_type || ''),
+    colour: String(p.colour || ''),
+    weight: String(p.weight || ''),
+    size: String(p.size || ''),
+    dimensions: String(p.dimensions || ''),
+    care_instructions: String(p.care_instructions || ''),
+    shipping_info: String(p.shipping_info || ''),
+    return_info: String(p.return_info || ''),
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    images: Array.isArray(p.images) ? p.images : [],
+    is_featured: Boolean(p.is_featured),
+    is_new_arrival: Boolean(p.is_new_arrival),
+    is_best_seller: Boolean(p.is_best_seller),
+    is_active: Boolean(p.is_active),
+    updated_at: p.updated_at || new Date().toISOString(),
+  };
+};
+
   const addProduct = (newProdData: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => {
     const id = `prod-${Date.now()}`;
     const now = new Date().toISOString();
@@ -403,7 +435,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (e) {}
 
     // Sync to Supabase via upsert
-    const { category_name, ...cleanItem } = newProduct;
+    const cleanItem = prepareProductForSupabase(newProduct);
     try {
       supabase.from('products').upsert([cleanItem]).then(({ error }) => {
         if (error) console.error('Supabase product insert note:', error.message);
@@ -444,11 +476,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Sync to Supabase via upsert
     if (updatedItem) {
-      const { category_name, ...cleanItem } = updatedItem;
+      const cleanItem = prepareProductForSupabase(updatedItem);
       try {
         supabase.from('products').upsert([cleanItem]).then(({ error }) => {
           if (error) {
-            console.error('Supabase product update note:', error.message);
+            console.error('Supabase product update note:', error.message, error.details);
           } else {
             console.log('Product price successfully synced to Supabase for ID:', id);
           }
