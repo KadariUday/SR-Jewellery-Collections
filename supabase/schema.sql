@@ -346,6 +346,7 @@ VALUES (
 
 INSERT INTO public.coupons (code, discount_type, discount_value, min_order_value, max_discount, is_active)
 VALUES 
+('UDAY99', 'PERCENTAGE', 99.00, 0.00, 0.00, true),
 ('WELCOME10', 'PERCENTAGE', 10.00, 999.00, 500.00, true),
 ('ROYAL500', 'FIXED', 500.00, 4999.00, 500.00, true)
 ON CONFLICT (code) DO NOTHING;

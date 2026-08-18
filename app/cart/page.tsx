@@ -122,7 +122,7 @@ export default function CartPage() {
                   <form onSubmit={handleApplyCoupon} className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. WELCOME10"
+                      placeholder="e.g. UDAY99"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value)}
                       className="flex-1 px-3 py-2 bg-cream-50 border border-cream-300 rounded-xl text-xs uppercase font-mono"

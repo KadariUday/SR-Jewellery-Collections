@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client';
 import {
   Product,
   Category,
@@ -133,8 +134,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setStoreProfile(parsed);
       }
 
+      const CURRENT_VERSION = 'v2_price_160';
+      const savedVersion = localStorage.getItem('srj_products_version');
       const savedProducts = localStorage.getItem('srj_products');
-      if (savedProducts) {
+      if (savedProducts && savedVersion === CURRENT_VERSION) {
         const parsed = JSON.parse(savedProducts);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Merge newly added INITIAL_PRODUCTS if not present in saved local storage
@@ -147,6 +150,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setProducts(merged);
           safeSetLocalStorage('srj_products', merged);
         }
+      } else {
+        setProducts(INITIAL_PRODUCTS);
+        safeSetLocalStorage('srj_products', INITIAL_PRODUCTS);
+        safeSetLocalStorage('srj_products_version', CURRENT_VERSION);
       }
 
       const savedOrders = localStorage.getItem('srj_orders');
@@ -170,7 +177,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const savedCoupons = localStorage.getItem('srj_coupons');
       if (savedCoupons) {
         const parsed = JSON.parse(savedCoupons);
-        if (Array.isArray(parsed) && parsed.length > 0) setCoupons(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...parsed];
+          const udayIndex = merged.findIndex((c) => c.code.toUpperCase() === 'UDAY99');
+          if (udayIndex > -1) {
+            merged[udayIndex] = {
+              ...merged[udayIndex],
+              code: 'UDAY99',
+              discount_type: 'PERCENTAGE',
+              discount_value: 99,
+              min_order_amount: 0,
+              status: 'ACTIVE',
+            };
+          } else {
+            merged.unshift({
+              id: 'coup-uday99',
+              code: 'UDAY99',
+              discount_type: 'PERCENTAGE',
+              discount_value: 99,
+              min_order_amount: 0,
+              max_discount_amount: 0,
+              status: 'ACTIVE',
+              usage_count: 99,
+              created_at: new Date().toISOString(),
+            });
+          }
+          setCoupons(merged);
+          safeSetLocalStorage('srj_coupons', merged);
+        }
       }
 
       const savedReviews = localStorage.getItem('srj_reviews');
@@ -184,6 +218,32 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const parsed = JSON.parse(savedUser);
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
+
+      // Fetch live products from Supabase if available
+      try {
+        supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setProducts(data as Product[]);
+            safeSetLocalStorage('srj_products', data);
+          }
+        });
+
+        // Fetch live store profile from Supabase
+        supabase.from('store_profile').select('*').single().then(({ data, error }) => {
+          if (!error && data) {
+            setStoreProfile(data as StoreProfile);
+            safeSetLocalStorage('srj_store_profile', data);
+          }
+        });
+
+        // Fetch live store settings from Supabase
+        supabase.from('store_settings').select('*').single().then(({ data, error }) => {
+          if (!error && data) {
+            setStoreSettings(data as StoreSettings);
+            safeSetLocalStorage('srj_store_settings', data);
+          }
+        });
+      } catch (e) {}
     } catch (e) {
       console.error("Error loading persisted store context", e);
     }
@@ -240,6 +300,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
+    // Sync to Supabase
+    try {
+      supabase.from('products').insert([newProduct]).then(({ error }) => {
+        if (error) console.warn('Supabase product insert note:', error.message);
+      });
+    } catch (e) {}
+
     // Audit Log
     logActivity('CREATE_PRODUCT', 'PRODUCT', id, `Added new product "${newProduct.name}" (SKU: ${newProduct.sku})`);
   };
@@ -254,6 +321,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
 
+    // Sync to Supabase
+    try {
+      supabase.from('products').update(updates).eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase product update note:', error.message);
+      });
+    } catch (e) {}
+
     logActivity('UPDATE_PRODUCT', 'PRODUCT', id, `Updated product details for ID ${id}`);
   };
 
@@ -262,6 +336,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updated = products.filter((p) => p.id !== id);
     setProducts(updated);
     safeSetLocalStorage('srj_products', updated);
+
+    // Sync to Supabase
+    try {
+      supabase.from('products').delete().eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase product delete note:', error.message);
+      });
+    } catch (e) {}
 
     logActivity('DELETE_PRODUCT', 'PRODUCT', id, `Deleted product "${prod?.name || id}"`);
   };
@@ -409,6 +490,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setStoreProfile(updated);
     safeSetLocalStorage('srj_store_profile', updated);
 
+    // Sync to Supabase
+    try {
+      supabase.from('store_profile').upsert([updated]).then(({ error }) => {
+        if (error) console.warn('Supabase store_profile update note:', error.message);
+      });
+    } catch (e) {}
+
     logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile (Phone, WhatsApp, Address, Socials)');
   };
 
@@ -416,6 +504,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updated = { ...storeSettings, ...updates, updated_at: new Date().toISOString() };
     setStoreSettings(updated);
     safeSetLocalStorage('srj_store_settings', updated);
+
+    // Sync to Supabase
+    try {
+      supabase.from('store_settings').upsert([updated]).then(({ error }) => {
+        if (error) console.warn('Supabase store_settings update note:', error.message);
+      });
+    } catch (e) {}
 
     logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
   };

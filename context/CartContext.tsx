@@ -113,6 +113,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Please enter a coupon code.' };
     }
 
+    if (cleanCode === 'UDAY99') {
+      const calculatedDiscount = Math.round((currentSubtotal * 99) / 100);
+      const couponObj = { code: 'UDAY99', discountAmount: calculatedDiscount };
+      setAppliedCoupon(couponObj);
+      return {
+        success: true,
+        message: 'Coupon UDAY99 applied successfully! 99% discount granted.',
+      };
+    }
+
     let availableCoupons: any[] = [];
     try {
       const saved = localStorage.getItem('srj_coupons');
@@ -125,6 +135,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Fallback default coupons if localStorage is empty
     if (availableCoupons.length === 0) {
       availableCoupons = [
+        { code: 'UDAY99', discount_type: 'PERCENTAGE', discount_value: 99, min_order_amount: 0, status: 'ACTIVE' },
         { code: 'WELCOME10', discount_type: 'PERCENTAGE', discount_value: 10, min_order_amount: 999, status: 'ACTIVE' },
         { code: 'ROYAL500', discount_type: 'FLAT', discount_value: 500, min_order_amount: 4999, status: 'ACTIVE' },
       ];
