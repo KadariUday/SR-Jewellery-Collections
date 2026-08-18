@@ -309,6 +309,45 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  // Supabase Realtime Global Subscription for instant live cross-device updates
+  useEffect(() => {
+    try {
+      const channel = supabase
+        .channel('public:products')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'products' },
+          (payload) => {
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              const updatedItem = payload.new as Product;
+              setProducts((prev) => {
+                const map = new Map(prev.map((p) => [p.id, p]));
+                const existing = map.get(updatedItem.id) || {};
+                map.set(updatedItem.id, { ...existing, ...updatedItem } as Product);
+                const updatedList = Array.from(map.values());
+                safeSetLocalStorage('srj_products', updatedList);
+                return updatedList;
+              });
+            } else if (payload.eventType === 'DELETE' && payload.old) {
+              const deletedId = (payload.old as any).id;
+              setProducts((prev) => {
+                const updatedList = prev.filter((p) => p.id !== deletedId);
+                safeSetLocalStorage('srj_products', updatedList);
+                return updatedList;
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch (e) {
+      console.warn('Supabase realtime subscription note:', e);
+    }
+  }, []);
+
   // Real-time cross-tab and same-window synchronization for products
   useEffect(() => {
     const syncProducts = () => {
