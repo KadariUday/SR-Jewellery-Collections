@@ -348,7 +348,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Real-time cross-tab and same-window synchronization for products
+  // Real-time cross-tab and same-window synchronization for products, profile, and settings
   useEffect(() => {
     const syncProducts = () => {
       try {
@@ -362,18 +362,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch (e) {}
     };
 
+    const syncProfileAndSettings = () => {
+      try {
+        const savedProf = localStorage.getItem('srj_store_profile');
+        if (savedProf) {
+          const parsed = JSON.parse(savedProf);
+          if (parsed && parsed.store_name) setStoreProfile(parsed);
+        }
+        const savedSet = localStorage.getItem('srj_store_settings');
+        if (savedSet) {
+          const parsed = JSON.parse(savedSet);
+          if (parsed) setStoreSettings(parsed);
+        }
+      } catch (e) {}
+    };
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'srj_products') {
         syncProducts();
+      }
+      if (e.key === 'srj_store_profile' || e.key === 'srj_store_settings') {
+        syncProfileAndSettings();
       }
     };
 
     window.addEventListener('storage', handleStorage);
     window.addEventListener('srj_products_updated', syncProducts);
+    window.addEventListener('srj_profile_updated', syncProfileAndSettings);
+    window.addEventListener('srj_settings_updated', syncProfileAndSettings);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('srj_products_updated', syncProducts);
+      window.removeEventListener('srj_profile_updated', syncProfileAndSettings);
+      window.removeEventListener('srj_settings_updated', syncProfileAndSettings);
     };
   }, []);
 
@@ -698,12 +720,16 @@ const prepareProductForSupabase = (p: Product) => {
     setStoreProfile(updated);
     safeSetLocalStorage('srj_store_profile', updated);
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_profile_updated'));
+    }
+
     // Sync to Supabase
     try {
       supabase.from('store_profile').upsert([updated]).then(({ error }) => {
         if (error) console.warn('Supabase store_profile update note:', error.message);
       });
-    } catch (e) { }
+    } catch (e) {}
 
     logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile (Phone, WhatsApp, Address, Socials)');
   };
@@ -713,12 +739,16 @@ const prepareProductForSupabase = (p: Product) => {
     setStoreSettings(updated);
     safeSetLocalStorage('srj_store_settings', updated);
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_settings_updated'));
+    }
+
     // Sync to Supabase
     try {
       supabase.from('store_settings').upsert([updated]).then(({ error }) => {
         if (error) console.warn('Supabase store_settings update note:', error.message);
       });
-    } catch (e) { }
+    } catch (e) {}
 
     logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
   };

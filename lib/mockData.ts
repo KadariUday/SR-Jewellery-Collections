@@ -32,7 +32,7 @@ export const INITIAL_STORE_PROFILE: StoreProfile = {
   facebook_url: 'https://facebook.com/srjewellery',
   youtube_url: 'https://youtube.com/srjewellery',
   business_hours: 'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed',
-  upi_id: 'sushmitha.admin@okaxis',
+  upi_id: '992438853@fam',
   updated_at: '2024-01-01T00:00:00.000Z',
 };
 
