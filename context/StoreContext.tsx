@@ -19,6 +19,7 @@ import {
   Coupon,
   ProductReview,
 } from '@/lib/types';
+import { normalizePhoneNumber } from '@/lib/utils';
 import {
   INITIAL_PRODUCTS,
   INITIAL_CATEGORIES,
@@ -85,8 +86,8 @@ interface StoreContextType {
   ) => void;
 
   // Profile & settings actions
-  updateStoreProfile: (updates: Partial<StoreProfile>) => void;
-  updateStoreSettings: (updates: Partial<StoreSettings>) => void;
+  updateStoreProfile: (updates: Partial<StoreProfile>) => Promise<{ success: boolean; error?: string }>;
+  updateStoreSettings: (updates: Partial<StoreSettings>) => Promise<{ success: boolean; error?: string }>;
 
   // Customer & notes actions
   addCustomerNote: (customerId: string, noteText: string) => void;
@@ -236,43 +237,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
 
-      // Fetch server backup for store profile and settings
+      // Fetch live store profile directly from Supabase (Single Source of Truth)
       try {
-        fetch('/api/store-profile')
-          .then((r) => r.json())
-          .then((d) => {
-            if (d && d.profile && d.profile.phone) {
-              setStoreProfile((prev) => {
-                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
-                const apiTime = d.profile.updated_at ? new Date(d.profile.updated_at).getTime() : 0;
-                const isInitial = !prev || prev.updated_at === INITIAL_STORE_PROFILE.updated_at;
-                if (apiTime > prevTime || isInitial) {
-                  safeSetLocalStorage('srj_store_profile', d.profile);
-                  return d.profile;
-                }
-                return prev;
-              });
+        supabase
+          .from('store_profile')
+          .select('*')
+          .eq('id', '00000000-0000-0000-0000-000000000001')
+          .single()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              const profileData = data as StoreProfile;
+              if (profileData.upi_vpa && !profileData.upi_id) {
+                profileData.upi_id = profileData.upi_vpa;
+              } else if (profileData.upi_id && !profileData.upi_vpa) {
+                profileData.upi_vpa = profileData.upi_id;
+              }
+              setStoreProfile(profileData);
             }
-          })
-          .catch(() => {});
+          });
+      } catch (e) {}
 
-        fetch('/api/store-settings')
-          .then((r) => r.json())
-          .then((d) => {
-            if (d && d.settings) {
-              setStoreSettings((prev) => {
-                const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
-                const apiTime = d.settings.updated_at ? new Date(d.settings.updated_at).getTime() : 0;
-                const isInitial = !prev || prev.updated_at === INITIAL_STORE_SETTINGS.updated_at;
-                if (apiTime > prevTime || isInitial) {
-                  safeSetLocalStorage('srj_store_settings', d.settings);
-                  return d.settings;
-                }
-                return prev;
-              });
+      // Fetch live store settings directly from Supabase (Single Source of Truth)
+      try {
+        supabase
+          .from('store_settings')
+          .select('*')
+          .eq('id', '00000000-0000-0000-0000-000000000001')
+          .single()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              setStoreSettings(data as StoreSettings);
             }
-          })
-          .catch(() => {});
+          });
       } catch (e) {}
 
       // 1. Fetch live products from Supabase
@@ -282,44 +278,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const supaProducts = data as Product[];
             setProducts(supaProducts);
             safeSetLocalStorage('srj_products', supaProducts);
-          }
-        });
-      } catch (e) {}
-
-      // 2. Fetch live store profile from Supabase
-      try {
-        supabase.from('store_profile').select('*').limit(1).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const supaProfile = data[0] as StoreProfile;
-            setStoreProfile((prev) => {
-              const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
-              const supaTime = supaProfile.updated_at ? new Date(supaProfile.updated_at).getTime() : 0;
-              const isInitial = !prev || prev.updated_at === INITIAL_STORE_PROFILE.updated_at;
-              if (supaTime > prevTime || (isInitial && supaTime > 0)) {
-                safeSetLocalStorage('srj_store_profile', supaProfile);
-                return supaProfile;
-              }
-              return prev;
-            });
-          }
-        });
-      } catch (e) {}
-
-      // 3. Fetch live store settings from Supabase
-      try {
-        supabase.from('store_settings').select('*').limit(1).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const supaSettings = data[0] as StoreSettings;
-            setStoreSettings((prev) => {
-              const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
-              const supaTime = supaSettings.updated_at ? new Date(supaSettings.updated_at).getTime() : 0;
-              const isInitial = !prev || prev.updated_at === INITIAL_STORE_SETTINGS.updated_at;
-              if (supaTime > prevTime || (isInitial && supaTime > 0)) {
-                safeSetLocalStorage('srj_store_settings', supaSettings);
-                return supaSettings;
-              }
-              return prev;
-            });
           }
         });
       } catch (e) {}
@@ -807,15 +765,16 @@ const prepareProductForSupabase = (p: Product) => {
   };
 
 const prepareStoreProfileForSupabase = (p: StoreProfile) => {
+  const upiVal = p.upi_vpa || p.upi_id || '992438853@fam';
   return {
-    id: p.id || '00000000-0000-0000-0000-000000000001',
+    id: '00000000-0000-0000-0000-000000000001',
     store_name: String(p.store_name || 'SR Jewellery Collections'),
     logo_url: String(p.logo_url || '/logo.jpg'),
     tagline: String(p.tagline || ''),
     description: String(p.description || ''),
     email: String(p.email || 'contact@srjewellerycollections.com'),
-    phone: String(p.phone || '+91 8790522579'),
-    whatsapp: String(p.whatsapp || '+918790522579'),
+    phone: normalizePhoneNumber(p.phone || '918790522579'),
+    whatsapp: normalizePhoneNumber(p.whatsapp || '918790522579'),
     address: String(p.address || ''),
     city: String(p.city || ''),
     state: String(p.state || ''),
@@ -825,82 +784,97 @@ const prepareStoreProfileForSupabase = (p: StoreProfile) => {
     facebook_url: String(p.facebook_url || ''),
     youtube_url: String(p.youtube_url || ''),
     business_hours: String(p.business_hours || ''),
-    upi_id: String(p.upi_id || '992438853@fam'),
+    upi_vpa: upiVal,
+    upi_id: upiVal,
     updated_at: p.updated_at || new Date().toISOString(),
   };
 };
 
 const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
   return {
-    id: s.id || '00000000-0000-0000-0000-000000000001',
-    shipping_fee: Number(s.shipping_fee || 99),
-    free_shipping_threshold: Number(s.free_shipping_threshold || 1999),
-    tax_percentage: Number(s.tax_percentage || 3),
+    id: '00000000-0000-0000-0000-000000000001',
+    shipping_fee: Number(s.shipping_fee ?? 99),
+    free_shipping_threshold: Number(s.free_shipping_threshold ?? 1999),
+    tax_percentage: Number(s.tax_percentage ?? 3),
     cod_enabled: Boolean(s.cod_enabled),
-    min_cod_value: Number(s.min_cod_value || 299),
-    max_cod_value: Number(s.max_cod_value || 25000),
+    min_cod_value: Number(s.min_cod_value ?? 299),
+    max_cod_value: Number(s.max_cod_value ?? 25000),
     upi_enabled: Boolean(s.upi_enabled),
     razorpay_test_mode: Boolean(s.razorpay_test_mode),
     updated_at: s.updated_at || new Date().toISOString(),
   };
 };
 
-  const updateStoreProfile = (updates: Partial<StoreProfile>) => {
+  const updateStoreProfile = async (updates: Partial<StoreProfile>): Promise<{ success: boolean; error?: string }> => {
     const updated = { ...storeProfile, ...updates, updated_at: new Date().toISOString() };
-    setStoreProfile(updated);
-    safeSetLocalStorage('srj_store_profile', updated);
+    const cleanProfile = prepareStoreProfileForSupabase(updated);
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('srj_profile_updated'));
-    }
-
-    // Sync to Next.js API route for server-side cross-device persistence
     try {
-      fetch('/api/store-profile', {
+      // 1. Attempt direct Supabase client update
+      const { data, error } = await supabase.from('store_profile').upsert([cleanProfile]).select().single();
+      if (!error && data) {
+        const finalProfile = data as StoreProfile;
+        setStoreProfile(finalProfile);
+        logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile');
+        return { success: true };
+      }
+
+      // 2. If RLS or client permission blocks direct upsert, use Admin Service Role API Route
+      const apiRes = await fetch('/api/store-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      }).catch((e) => console.warn('API store profile sync note:', e));
-    } catch (e) {}
-
-    // Sync to Supabase
-    const cleanProfile = prepareStoreProfileForSupabase(updated);
-    try {
-      supabase.from('store_profile').upsert([cleanProfile]).then(({ error }) => {
-        if (error) console.warn('Supabase store_profile update note:', error.message);
+        body: JSON.stringify(cleanProfile),
       });
-    } catch (e) {}
 
-    logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile (Phone, WhatsApp, Address, Socials)');
+      const apiData = await apiRes.json();
+      if (!apiRes.ok || apiData.error) {
+        return { success: false, error: apiData.error || 'Failed to save store profile.' };
+      }
+
+      const finalProfile = (apiData.profile || cleanProfile) as StoreProfile;
+      setStoreProfile(finalProfile);
+      logActivity('UPDATE_STORE_PROFILE', 'SETTINGS', 'store_profile', 'Updated Store Business Profile');
+      return { success: true };
+    } catch (e: any) {
+      console.error('Error updating store profile:', e);
+      return { success: false, error: e?.message || 'Failed to save store profile.' };
+    }
   };
 
-  const updateStoreSettings = (updates: Partial<StoreSettings>) => {
+  const updateStoreSettings = async (updates: Partial<StoreSettings>): Promise<{ success: boolean; error?: string }> => {
     const updated = { ...storeSettings, ...updates, updated_at: new Date().toISOString() };
-    setStoreSettings(updated);
-    safeSetLocalStorage('srj_store_settings', updated);
+    const cleanSettings = prepareStoreSettingsForSupabase(updated);
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('srj_settings_updated'));
-    }
-
-    // Sync to Next.js API route for server-side cross-device persistence
     try {
-      fetch('/api/store-settings', {
+      // 1. Attempt direct Supabase client update
+      const { data, error } = await supabase.from('store_settings').upsert([cleanSettings]).select().single();
+      if (!error && data) {
+        const finalSettings = data as StoreSettings;
+        setStoreSettings(finalSettings);
+        logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
+        return { success: true };
+      }
+
+      // 2. If RLS or client permission blocks direct upsert, use Admin Service Role API Route
+      const apiRes = await fetch('/api/store-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      }).catch((e) => console.warn('API store settings sync note:', e));
-    } catch (e) {}
-
-    // Sync to Supabase
-    const cleanSettings = prepareStoreSettingsForSupabase(updated);
-    try {
-      supabase.from('store_settings').upsert([cleanSettings]).then(({ error }) => {
-        if (error) console.warn('Supabase store_settings update note:', error.message);
+        body: JSON.stringify(cleanSettings),
       });
-    } catch (e) {}
 
-    logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
+      const apiData = await apiRes.json();
+      if (!apiRes.ok || apiData.error) {
+        return { success: false, error: apiData.error || 'Failed to save store settings.' };
+      }
+
+      const finalSettings = (apiData.settings || cleanSettings) as StoreSettings;
+      setStoreSettings(finalSettings);
+      logActivity('UPDATE_STORE_SETTINGS', 'SETTINGS', 'store_settings', 'Updated Business & Payment Settings');
+      return { success: true };
+    } catch (e: any) {
+      console.error('Error updating store settings:', e);
+      return { success: false, error: e?.message || 'Failed to save store settings.' };
+    }
   };
 
   const addCustomerNote = (customerId: string, noteText: string) => {

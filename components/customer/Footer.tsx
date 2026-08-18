@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Gem, MapPin, Phone, Mail, Clock, Instagram, Facebook, Youtube, ShieldCheck, Code2, Sparkles, Rocket, Laptop, ExternalLink, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { formatPhoneNumber } from '@/lib/utils';
 
 export const Footer: React.FC = () => {
   const { storeProfile } = useStore();
@@ -132,7 +133,7 @@ export const Footer: React.FC = () => {
 
             <p className="flex items-center gap-2 font-semibold text-slate-200">
               <Phone className="w-4 h-4 text-gold-400 shrink-0" />
-              <span>{storeProfile.phone}</span>
+              <span>{formatPhoneNumber(storeProfile.phone)}</span>
             </p>
 
             <p className="flex items-center gap-2">

@@ -6,7 +6,29 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, symbol: string = "₹"): string {
-  return `${symbol}${Math.round(amount).toLocaleString('en-IN')}`;
+  const safeNum = isNaN(amount) || !isFinite(amount) ? 0 : amount;
+  return `${symbol}${Math.round(safeNum).toLocaleString('en-IN')}`;
+}
+
+export function normalizePhoneNumber(phone: string): string {
+  if (!phone) return '';
+  let clean = phone.replace(/[^0-9]/g, '');
+  if (clean.length === 10) {
+    clean = '91' + clean;
+  }
+  return clean;
+}
+
+export function formatPhoneNumber(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  return phone;
 }
 
 export function formatDate(dateString: string): string {
@@ -43,7 +65,7 @@ export function formatShortDate(dateString: string): string {
 }
 
 export function generateWhatsAppUrl(phone: string, message: string): string {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const cleanPhone = normalizePhoneNumber(phone);
   const encodedMsg = encodeURIComponent(message);
   return `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
 }

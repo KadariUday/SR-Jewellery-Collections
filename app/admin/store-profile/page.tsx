@@ -1,24 +1,80 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, Save, Phone, Mail, MapPin, Globe, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Building2, Save, Phone, MapPin, Globe, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { storeProfileSchema, isValidUpiVpa } from '@/lib/validation';
 
 export default function AdminStoreProfilePage() {
   const { storeProfile, updateStoreProfile } = useStore();
   const [formData, setFormData] = useState({ ...storeProfile });
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Keep form data in sync with storeProfile when hydrated from localStorage on page refresh
+  // Keep form data in sync with storeProfile when loaded from Supabase
   React.useEffect(() => {
-    setFormData({ ...storeProfile });
+    const upiVal = storeProfile.upi_vpa || storeProfile.upi_id || '992438853@fam';
+    setFormData({
+      ...storeProfile,
+      upi_vpa: upiVal,
+      upi_id: upiVal,
+    });
   }, [storeProfile]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateStoreProfile(formData);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    setErrorMessage(null);
+    setSavedSuccess(false);
+
+    const upiCandidate = formData.upi_vpa || formData.upi_id || '';
+
+    // Validate with Zod Schema
+    const parseResult = storeProfileSchema.safeParse({
+      store_name: formData.store_name,
+      logo_url: formData.logo_url || '/logo.jpg',
+      tagline: formData.tagline || '',
+      description: formData.description || '',
+      email: formData.email,
+      phone: formData.phone,
+      whatsapp: formData.whatsapp,
+      address: formData.address || '',
+      city: formData.city || '',
+      state: formData.state || '',
+      pincode: formData.pincode || '',
+      map_url: formData.map_url || '',
+      business_hours: formData.business_hours || '',
+      instagram_url: formData.instagram_url || '',
+      facebook_url: formData.facebook_url || '',
+      youtube_url: formData.youtube_url || '',
+      upi_vpa: upiCandidate,
+    });
+
+    if (!parseResult.success) {
+      const firstError = parseResult.error.issues[0]?.message || 'Invalid profile information';
+      setErrorMessage(firstError);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await updateStoreProfile({
+        ...parseResult.data,
+        upi_vpa: upiCandidate,
+        upi_id: upiCandidate,
+      });
+
+      if (result.success) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 4000);
+      } else {
+        setErrorMessage(result.error || 'Unable to save profile. No changes were applied.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Unable to save profile. No changes were applied.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -28,23 +84,31 @@ export default function AdminStoreProfilePage() {
         <div>
           <h1 className="text-2xl font-serif font-bold text-slate-900">Store Business Profile</h1>
           <p className="text-xs text-slate-500">
-            Single source of truth for public business details. Changes automatically sync to the customer website!
+            Single source of truth for public business details. Changes sync automatically to the storefront!
           </p>
         </div>
 
         <button
           onClick={handleSubmit}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gold-gradient text-slate-950 font-bold rounded-xl shadow-lg shadow-gold-500/20 hover:opacity-95 transition text-xs"
+          disabled={isSaving}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gold-gradient text-slate-950 font-bold rounded-xl shadow-lg shadow-gold-500/20 hover:opacity-95 transition text-xs disabled:opacity-50"
         >
-          <Save className="w-4 h-4" />
-          <span>Save & Sync Website</span>
+          {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
         </button>
       </div>
 
       {savedSuccess && (
         <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>Store profile saved successfully! Customer website (Contact, Footer, WhatsApp, About) updated in real-time.</span>
+          <span>Store profile saved successfully. Customer website updated in real-time.</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{errorMessage}</span>
         </div>
       )}
 
@@ -70,7 +134,7 @@ export default function AdminStoreProfilePage() {
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Logo Image URL</label>
               <input
-                type="url"
+                type="text"
                 value={formData.logo_url}
                 onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
@@ -99,7 +163,7 @@ export default function AdminStoreProfilePage() {
           </div>
         </div>
 
-        {/* Contact Numbers & Channels (Requirements #25 & #26) */}
+        {/* Contact Numbers & Channels */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <h3 className="font-serif font-bold text-base text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
             <Phone className="w-5 h-5 text-gold-500" /> Contact Numbers & Channels
@@ -113,6 +177,7 @@ export default function AdminStoreProfilePage() {
                 required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="918790522579 or +91 87905 22579"
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
               />
             </div>
@@ -124,7 +189,7 @@ export default function AdminStoreProfilePage() {
                 required
                 value={formData.whatsapp}
                 onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                placeholder="+919876543210"
+                placeholder="918790522579"
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-700"
               />
             </div>
@@ -141,14 +206,15 @@ export default function AdminStoreProfilePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Store UPI VPA ID (For 0% Direct Bank Transfer)</label>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">STORE UPI ID / VPA</label>
               <input
                 type="text"
-                value={formData.upi_id || ''}
-                onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
-                placeholder="e.g. 992438853@fam or 9876543210@upi"
+                value={formData.upi_vpa || formData.upi_id || ''}
+                onChange={(e) => setFormData({ ...formData, upi_vpa: e.target.value, upi_id: e.target.value })}
+                placeholder="e.g. example@upi or 992438853@fam"
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-gold-700"
               />
+              <p className="text-[10px] text-slate-400 mt-1">This UPI ID is used for direct UPI payments where enabled.</p>
             </div>
           </div>
         </div>

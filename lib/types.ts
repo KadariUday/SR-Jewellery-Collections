@@ -207,6 +207,7 @@ export interface StoreProfile {
   facebook_url: string;
   youtube_url: string;
   business_hours: string;
+  upi_vpa: string;
   upi_id?: string;
   updated_at: string;
 }

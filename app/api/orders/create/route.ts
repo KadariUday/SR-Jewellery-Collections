@@ -77,25 +77,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Fetch fresh store settings from Supabase database
-    const { data: settingsData } = await supabaseAdmin
+    // 2. Fetch fresh store settings from Supabase database (Singleton ID)
+    const { data: storeSettings } = await supabaseAdmin
       .from('store_settings')
       .select('*')
-      .limit(1);
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .maybeSingle();
 
-    const storeSettings = settingsData && settingsData.length > 0 ? settingsData[0] : null;
-    const freeShippingThreshold = Number(storeSettings?.free_shipping_threshold || 1999);
-    const defaultShippingFee = Number(storeSettings?.shipping_fee || 99);
+    const freeShippingThreshold = Number(storeSettings?.free_shipping_threshold ?? 1999);
+    const defaultShippingFee = Number(storeSettings?.shipping_fee ?? 99);
 
     const calculatedShippingFee = calculatedSubtotal >= freeShippingThreshold ? 0 : defaultShippingFee;
 
-    // Validate COD limits if payment method is COD
+    // Validate Payment Method Rules
+    if (paymentMethod === 'UPI') {
+      if (storeSettings && !storeSettings.upi_enabled) {
+        return NextResponse.json({ error: 'UPI / Digital Payments are currently disabled.' }, { status: 400 });
+      }
+    }
+
     if (paymentMethod === 'COD') {
       if (storeSettings && !storeSettings.cod_enabled) {
         return NextResponse.json({ error: 'Cash on Delivery is currently disabled.' }, { status: 400 });
       }
-      const minCod = Number(storeSettings?.min_cod_value || 299);
-      const maxCod = Number(storeSettings?.max_cod_value || 25000);
+      const minCod = Number(storeSettings?.min_cod_value ?? 299);
+      const maxCod = Number(storeSettings?.max_cod_value ?? 25000);
       if (calculatedSubtotal < minCod || calculatedSubtotal > maxCod) {
         return NextResponse.json(
           { error: `COD is available only for order values between ₹${minCod} and ₹${maxCod}.` },

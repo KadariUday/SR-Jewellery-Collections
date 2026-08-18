@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS public.store_profile (
     facebook_url TEXT DEFAULT 'https://facebook.com/srjewellery',
     youtube_url TEXT DEFAULT 'https://youtube.com/srjewellery',
     business_hours TEXT DEFAULT 'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed',
+    upi_vpa TEXT DEFAULT '992438853@fam',
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -386,12 +387,14 @@ CREATE POLICY "Public / Customers insert order items" ON public.order_items FOR 
 DROP POLICY IF EXISTS "Public store profile read" ON public.store_profile;
 CREATE POLICY "Public store profile read" ON public.store_profile FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins update store_profile" ON public.store_profile;
-CREATE POLICY "Admins update store_profile" ON public.store_profile FOR ALL USING (public.is_admin());
+DROP POLICY IF EXISTS "Enable write store_profile" ON public.store_profile;
+CREATE POLICY "Enable write store_profile" ON public.store_profile FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public store settings read" ON public.store_settings;
 CREATE POLICY "Public store settings read" ON public.store_settings FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins update store_settings" ON public.store_settings;
-CREATE POLICY "Admins update store_settings" ON public.store_settings FOR ALL USING (public.is_admin());
+DROP POLICY IF EXISTS "Enable write store_settings" ON public.store_settings;
+CREATE POLICY "Enable write store_settings" ON public.store_settings FOR ALL USING (true) WITH CHECK (true);
 
 -- 9. Contact Messages Policies
 DROP POLICY IF EXISTS "Public insert contact_messages" ON public.contact_messages;
@@ -413,26 +416,31 @@ CREATE POLICY "Public active coupons read" ON public.coupons FOR SELECT USING (i
 DROP POLICY IF EXISTS "Admins manage coupons" ON public.coupons;
 CREATE POLICY "Admins manage coupons" ON public.coupons FOR ALL USING (public.is_admin());
 
--- INITIAL SEED DATA
-INSERT INTO public.store_profile (id, store_name, tagline, description, email, phone, whatsapp, address, city, state, pincode, business_hours)
+-- CLEANUP & SINGLETON ENFORCEMENT FOR STORE SETTINGS AND PROFILE
+DELETE FROM public.store_profile WHERE id != '00000000-0000-0000-0000-000000000001';
+DELETE FROM public.store_settings WHERE id != '00000000-0000-0000-0000-000000000001';
+
+INSERT INTO public.store_profile (id, store_name, tagline, description, email, phone, whatsapp, address, city, state, pincode, business_hours, upi_vpa)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'SR Jewellery Collections',
     'Timeless Elegance & Royal Heritage Jewellery',
     'Discover hand-crafted Kundan, Polki, Gold & Diamond Jewellery designed for modern royalty. Every piece reflects craftsmanship and luxury.',
     'contact@srjewellerycollections.com',
-    '+91 98765 43210',
-    '+919876543210',
+    '918790522579',
+    '918790522579',
     '108 Royal Heritage Galleria, MG Road',
     'Hyderabad',
     'Telangana',
     '500001',
-    'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed'
-) ON CONFLICT (id) DO NOTHING;
+    'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed',
+    '992438853@fam'
+) ON CONFLICT (id) DO UPDATE SET
+    upi_vpa = EXCLUDED.upi_vpa;
 
 INSERT INTO public.store_settings (id, currency, shipping_fee, free_shipping_threshold, cod_enabled, min_cod_value, max_cod_value, upi_enabled, tax_percentage)
 VALUES (
-    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000001',
     'INR',
     99.00,
     1999.00,

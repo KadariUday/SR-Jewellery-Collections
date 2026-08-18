@@ -21,8 +21,8 @@ export const INITIAL_STORE_PROFILE: StoreProfile = {
   tagline: 'Timeless Elegance & Royal Heritage Jewellery',
   description: 'Discover hand-crafted Kundan, Polki, Gold & Diamond Jewellery designed for modern royalty. Every piece reflects Indian heritage, fine craftsmanship, and luxury.',
   email: 'contact@srjewellerycollections.com',
-  phone: '+91 8790522579',
-  whatsapp: '+918790522579',
+  phone: '918790522579',
+  whatsapp: '918790522579',
   address: '108 Royal Heritage Galleria, MG Road',
   city: 'Hyderabad',
   state: 'Telangana',
@@ -32,12 +32,13 @@ export const INITIAL_STORE_PROFILE: StoreProfile = {
   facebook_url: 'https://facebook.com/srjewellery',
   youtube_url: 'https://youtube.com/srjewellery',
   business_hours: 'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed',
+  upi_vpa: '992438853@fam',
   upi_id: '992438853@fam',
   updated_at: '2024-01-01T00:00:00.000Z',
 };
 
 export const INITIAL_STORE_SETTINGS: StoreSettings = {
-  id: '00000000-0000-0000-0000-000000000002',
+  id: '00000000-0000-0000-0000-000000000001',
   currency: 'INR',
   currency_symbol: '₹',
   shipping_fee: 99,

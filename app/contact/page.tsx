@@ -5,7 +5,7 @@ import { Navbar } from '@/components/customer/Navbar';
 import { Footer } from '@/components/customer/Footer';
 import { WhatsAppFloat } from '@/components/customer/WhatsAppFloat';
 import { useStore } from '@/context/StoreContext';
-import { sanitizeInput } from '@/lib/utils';
+import { sanitizeInput, formatPhoneNumber } from '@/lib/utils';
 import { MapPin, Phone, Mail, Clock, MessageSquare, CheckCircle2, Send } from 'lucide-react';
 
 export default function ContactUsPage() {
@@ -75,7 +75,7 @@ export default function ContactUsPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-900 block text-sm">Phone Assistance</span>
-                  <span className="font-mono text-slate-800 text-sm font-semibold">{storeProfile.phone}</span>
+                  <span className="font-mono text-slate-800 text-sm font-semibold">{formatPhoneNumber(storeProfile.phone)}</span>
                 </div>
               </div>
 

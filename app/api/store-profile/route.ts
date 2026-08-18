@@ -1,97 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { StoreProfile } from '@/lib/types';
-import { INITIAL_STORE_PROFILE } from '@/lib/mockData';
 import { createServerClient } from '@/lib/supabase/server';
-import fs from 'fs';
-import path from 'path';
+import { storeProfileSchema, normalizePhoneNumber } from '@/lib/validation';
+import { INITIAL_STORE_PROFILE } from '@/lib/mockData';
 
-const TMP_FILE = path.join('/tmp', 'store_profile.json');
-const DATA_FILE = path.join(process.cwd(), '.next', 'store_profile.json');
-
-function loadProfile(): StoreProfile {
-  try {
-    if (fs.existsSync(TMP_FILE)) {
-      const data = fs.readFileSync(TMP_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (e) {}
-  return INITIAL_STORE_PROFILE;
-}
-
-function saveProfile(profile: StoreProfile): boolean {
-  try {
-    const data = JSON.stringify(profile);
-    try { fs.writeFileSync(TMP_FILE, data, 'utf8'); } catch (e) {}
-    try {
-      const dir = path.dirname(DATA_FILE);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(DATA_FILE, data, 'utf8');
-    } catch (e) {}
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-let inMemoryProfile: StoreProfile = loadProfile();
+const SINGLETON_ID = '00000000-0000-0000-0000-000000000001';
 
 export async function GET() {
-  if (!inMemoryProfile || !inMemoryProfile.phone) {
-    inMemoryProfile = loadProfile();
+  try {
+    const supabaseAdmin = createServerClient();
+    const { data, error } = await supabaseAdmin
+      .from('store_profile')
+      .select('*')
+      .eq('id', SINGLETON_ID)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Supabase store_profile query error:', error.message);
+      return NextResponse.json({ profile: INITIAL_STORE_PROFILE });
+    }
+
+    const profileData = data || INITIAL_STORE_PROFILE;
+    if (profileData && profileData.upi_vpa && !profileData.upi_id) {
+      profileData.upi_id = profileData.upi_vpa;
+    } else if (profileData && profileData.upi_id && !profileData.upi_vpa) {
+      profileData.upi_vpa = profileData.upi_id;
+    }
+
+    return NextResponse.json({ profile: profileData });
+  } catch (e: any) {
+    return NextResponse.json({ profile: INITIAL_STORE_PROFILE });
   }
-  return NextResponse.json({ profile: inMemoryProfile });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    if (body && typeof body === 'object') {
-      const updatedProfile: StoreProfile = {
-        ...inMemoryProfile,
-        ...body,
-        updated_at: new Date().toISOString(),
-      };
-      inMemoryProfile = updatedProfile;
-      saveProfile(inMemoryProfile);
-
-      // Sync to Supabase database using admin service role key to bypass RLS policies
-      try {
-        const supabaseAdmin = createServerClient();
-        const cleanProfile = {
-          id: updatedProfile.id || '00000000-0000-0000-0000-000000000001',
-          store_name: String(updatedProfile.store_name || 'SR Jewellery Collections'),
-          logo_url: String(updatedProfile.logo_url || '/logo.jpg'),
-          tagline: String(updatedProfile.tagline || ''),
-          description: String(updatedProfile.description || ''),
-          email: String(updatedProfile.email || 'contact@srjewellerycollections.com'),
-          phone: String(updatedProfile.phone || '+91 8790522579'),
-          whatsapp: String(updatedProfile.whatsapp || '+918790522579'),
-          address: String(updatedProfile.address || ''),
-          city: String(updatedProfile.city || ''),
-          state: String(updatedProfile.state || ''),
-          pincode: String(updatedProfile.pincode || ''),
-          map_url: String(updatedProfile.map_url || ''),
-          instagram_url: String(updatedProfile.instagram_url || ''),
-          facebook_url: String(updatedProfile.facebook_url || ''),
-          youtube_url: String(updatedProfile.youtube_url || ''),
-          business_hours: String(updatedProfile.business_hours || ''),
-          upi_id: String(updatedProfile.upi_id || '992438853@fam'),
-          updated_at: updatedProfile.updated_at,
-        };
-        await supabaseAdmin.from('store_profile').upsert([cleanProfile]);
-      } catch (e) {
-        console.warn('Server Supabase store_profile upsert note:', e);
-      }
-
-      return NextResponse.json({ success: true, profile: inMemoryProfile });
+    
+    // Normalize upi_vpa / upi_id if passed as upi_id
+    if (body && body.upi_id && !body.upi_vpa) {
+      body.upi_vpa = body.upi_id;
     }
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+
+    const validationResult = storeProfileSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      const errorMsg = validationResult.error.issues[0]?.message || 'Invalid profile payload';
+      return NextResponse.json({ error: errorMsg }, { status: 400 });
+    }
+
+    const validData = validationResult.data;
+    const supabaseAdmin = createServerClient();
+
+    const cleanProfile = {
+      id: SINGLETON_ID,
+      store_name: validData.store_name,
+      logo_url: validData.logo_url,
+      tagline: validData.tagline || '',
+      description: validData.description || '',
+      email: validData.email,
+      phone: normalizePhoneNumber(validData.phone),
+      whatsapp: normalizePhoneNumber(validData.whatsapp),
+      address: validData.address || '',
+      city: validData.city || '',
+      state: validData.state || '',
+      pincode: validData.pincode || '',
+      map_url: validData.map_url || '',
+      business_hours: validData.business_hours || '',
+      instagram_url: validData.instagram_url || '',
+      facebook_url: validData.facebook_url || '',
+      youtube_url: validData.youtube_url || '',
+      upi_vpa: validData.upi_vpa,
+      upi_id: validData.upi_vpa,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('store_profile')
+      .upsert([cleanProfile])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase store_profile upsert error:', error.message);
+      return NextResponse.json({ error: `Unable to save profile: ${error.message}` }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, profile: data || cleanProfile });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 });
   }
 }
-

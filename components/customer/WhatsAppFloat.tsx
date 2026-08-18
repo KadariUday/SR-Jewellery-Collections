@@ -9,7 +9,7 @@ export const WhatsAppFloat: React.FC = () => {
   const { storeProfile } = useStore();
 
   const msg = `Hello ${storeProfile.store_name}, I have an inquiry regarding your jewellery collections.`;
-  const url = generateWhatsAppUrl(storeProfile.whatsapp || '+919876543210', msg);
+  const url = generateWhatsAppUrl(storeProfile.whatsapp || storeProfile.phone || '918790522579', msg);
 
   return (
     <a

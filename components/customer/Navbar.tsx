@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { useCart } from '@/context/CartContext';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPhoneNumber } from '@/lib/utils';
+import { StoreProfile, StoreSettings } from '@/lib/types';
 
 export const Navbar: React.FC = () => {
   const router = useRouter();
@@ -48,7 +49,7 @@ export const Navbar: React.FC = () => {
         <span>✨ Free Express Insured Delivery on orders over {formatCurrency(storeSettings.free_shipping_threshold)}</span>
         <span className="hidden md:inline">|</span>
         <span className="hidden md:inline flex items-center gap-1">
-          <Phone className="w-3 h-3 text-gold-400 inline" /> {storeProfile.phone}
+          <Phone className="w-3 h-3 text-gold-400 inline" /> {formatPhoneNumber(storeProfile.phone)}
         </span>
       </div>
 

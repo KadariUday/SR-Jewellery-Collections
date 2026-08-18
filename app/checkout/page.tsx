@@ -14,17 +14,31 @@ import { CustomerAddress, PaymentMethod } from '@/lib/types';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, total, discount, clearCart } = useCart();
+  const { cart, total, discount, clearCart, appliedCoupon } = useCart();
   const { addresses, addOrder, storeSettings, storeProfile, currentUser, addCustomerAddress } = useStore();
 
   const userAddresses = currentUser
     ? addresses.filter((a) => a.customer_id === currentUser.id || (currentUser.phone && a.phone === currentUser.phone))
     : [];
 
+  const subtotal = cart.reduce((acc, item) => acc + item.product.selling_price * item.quantity, 0);
+  const shippingFee = subtotal >= storeSettings.free_shipping_threshold ? 0 : storeSettings.shipping_fee;
+  const grandTotal = Math.max(0, subtotal - discount) + shippingFee;
+
+  const isCodAllowed = Boolean(
+    storeSettings.cod_enabled &&
+    subtotal >= storeSettings.min_cod_value &&
+    subtotal <= storeSettings.max_cod_value
+  );
+
+  const isUpiAllowed = Boolean(storeSettings.upi_enabled);
+
   const [selectedAddressId, setSelectedAddressId] = useState<string>(
     userAddresses[0]?.id || 'new'
   );
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    isUpiAllowed ? 'UPI' : 'COD'
+  );
   const [loading, setLoading] = useState(false);
 
   // Direct UPI Payment Modal State
@@ -46,11 +60,7 @@ export default function CheckoutPage() {
     is_default: true,
   });
 
-  const subtotal = cart.reduce((acc, item) => acc + item.product.selling_price * item.quantity, 0);
-  const shippingFee = subtotal >= storeSettings.free_shipping_threshold ? 0 : storeSettings.shipping_fee;
-  const grandTotal = Math.max(0, subtotal - discount) + shippingFee;
-
-  const storeUpiId = storeProfile.upi_id || '992438853@fam';
+  const storeUpiId = storeProfile.upi_vpa || storeProfile.upi_id || '992438853@fam';
   const upiQrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(
     `upi://pay?pa=${storeUpiId}&pn=${encodeURIComponent(storeProfile.store_name)}&am=${grandTotal}&cu=INR`
   )}&size=250`;
@@ -321,35 +331,53 @@ export default function CheckoutPage() {
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <label
-                    onClick={() => setPaymentMethod('UPI')}
-                    className={`p-4 rounded-2xl border cursor-pointer flex items-center gap-3 transition ${
-                      paymentMethod === 'UPI'
-                        ? 'border-gold-500 bg-gold-50/60 ring-2 ring-gold-400'
-                        : 'border-cream-300 bg-white hover:bg-cream-50'
-                    }`}
-                  >
-                    <input type="radio" name="payment" checked={paymentMethod === 'UPI'} onChange={() => {}} />
-                    <div>
-                      <span className="font-bold text-slate-900 text-xs block">Direct UPI Payment (GPay / PhonePe / Paytm)</span>
-                      <span className="text-[10px] text-slate-500 block">Scan QR Code & transfer directly to store UPI ID</span>
-                    </div>
-                  </label>
+                  {isUpiAllowed && (
+                    <label
+                      onClick={() => setPaymentMethod('UPI')}
+                      className={`p-4 rounded-2xl border cursor-pointer flex items-center gap-3 transition ${
+                        paymentMethod === 'UPI'
+                          ? 'border-gold-500 bg-gold-50/60 ring-2 ring-gold-400'
+                          : 'border-cream-300 bg-white hover:bg-cream-50'
+                      }`}
+                    >
+                      <input type="radio" name="payment" checked={paymentMethod === 'UPI'} onChange={() => {}} />
+                      <div>
+                        <span className="font-bold text-slate-900 text-xs block">Direct UPI Payment (GPay / PhonePe / Paytm)</span>
+                        <span className="text-[10px] text-slate-500 block">Scan QR Code & transfer directly to store UPI ID</span>
+                      </div>
+                    </label>
+                  )}
 
-                  <label
-                    onClick={() => setPaymentMethod('COD')}
-                    className={`p-4 rounded-2xl border cursor-pointer flex items-center gap-3 transition ${
-                      paymentMethod === 'COD'
-                        ? 'border-gold-500 bg-gold-50/60 ring-2 ring-gold-400'
-                        : 'border-cream-300 bg-white hover:bg-cream-50'
-                    }`}
-                  >
-                    <input type="radio" name="payment" checked={paymentMethod === 'COD'} onChange={() => {}} />
-                    <div>
-                      <span className="font-bold text-slate-900 text-xs block">Cash on Delivery (COD)</span>
-                      <span className="text-[10px] text-slate-500 block">Pay cash on delivery</span>
-                    </div>
-                  </label>
+                  {storeSettings.cod_enabled ? (
+                    <label
+                      onClick={() => {
+                        if (isCodAllowed) setPaymentMethod('COD');
+                      }}
+                      className={`p-4 rounded-2xl border flex items-center gap-3 transition ${
+                        !isCodAllowed
+                          ? 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
+                          : paymentMethod === 'COD'
+                          ? 'border-gold-500 bg-gold-50/60 ring-2 ring-gold-400 cursor-pointer'
+                          : 'border-cream-300 bg-white hover:bg-cream-50 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment"
+                        disabled={!isCodAllowed}
+                        checked={paymentMethod === 'COD'}
+                        onChange={() => {}}
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 text-xs block">Cash on Delivery (COD)</span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {isCodAllowed
+                            ? 'Pay cash on delivery'
+                            : `Available for orders ${formatCurrency(storeSettings.min_cod_value)} - ${formatCurrency(storeSettings.max_cod_value)}`}
+                        </span>
+                      </div>
+                    </label>
+                  ) : null}
                 </div>
               </div>
             </div>
