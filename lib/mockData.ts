@@ -33,7 +33,7 @@ export const INITIAL_STORE_PROFILE: StoreProfile = {
   youtube_url: 'https://youtube.com/srjewellery',
   business_hours: 'Mon - Sat: 10:30 AM - 8:30 PM | Sun: Closed',
   upi_id: 'sushmitha.admin@okaxis',
-  updated_at: new Date().toISOString(),
+  updated_at: '2024-01-01T00:00:00.000Z',
 };
 
 export const INITIAL_STORE_SETTINGS: StoreSettings = {
@@ -52,7 +52,7 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
   allow_cancellation: true,
   allow_returns: true,
   razorpay_test_mode: true,
-  updated_at: new Date().toISOString(),
+  updated_at: '2024-01-01T00:00:00.000Z',
 };
 
 export const INITIAL_CATEGORIES: Category[] = [
@@ -122,8 +122,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/pink_ruby_jhumka_earrings.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-2',
@@ -153,8 +153,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_blue_lotus.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-3',
@@ -184,8 +184,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_emerald_dhara.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-4',
@@ -215,8 +215,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_silver_emerald.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-5',
@@ -246,8 +246,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_silver_ruby.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-6',
@@ -277,8 +277,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_yellow.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-7',
@@ -308,8 +308,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_sky_blue_chandbali.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-8',
@@ -339,8 +339,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_laher_royal_blue.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-9',
@@ -370,8 +370,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_aj_emerald_chandbali.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-10',
@@ -401,8 +401,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_laher_magenta_pink.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-11',
@@ -432,8 +432,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_emerald_lotus_jhumka.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-12',
@@ -463,8 +463,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_baby_pink_lotus_jhumka.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-13',
@@ -494,8 +494,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_teal_lotus_jhumka.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-14',
@@ -525,8 +525,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_lavender_purple_chandbali.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-15',
@@ -556,8 +556,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_powder_pink_chandbali.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-16',
@@ -587,8 +587,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_violet_lotus_jhumka.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-17',
@@ -618,8 +618,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_mint_green_lotus_jhumka.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-18',
@@ -649,8 +649,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_lilac_jhumka.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-19',
@@ -680,8 +680,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_maroon_red_lotus_jhumka.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-20',
@@ -711,8 +711,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_yellow_lotus_jhumka.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-21',
@@ -742,8 +742,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_multicolour.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-22',
@@ -773,8 +773,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_laher_lavender_lotus.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-23',
@@ -804,8 +804,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_emerald_green.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-24',
@@ -835,8 +835,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_peach_coral.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-25',
@@ -866,8 +866,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_rose_pink.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-26',
@@ -897,8 +897,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_black_lotus_jhumka.png'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'prod-ear-27',
@@ -928,8 +928,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     is_best_seller: true,
     is_active: true,
     images: ['/images/earrings_dhara_emerald_floral_jhumka.jpg'],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
+    updated_at: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -940,7 +940,7 @@ export const INITIAL_CUSTOMERS: UserProfile[] = [
     full_name: 'Sushmitha Admin',
     phone: '+91 98765 43210',
     role: 'ADMIN',
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -963,7 +963,7 @@ export const INITIAL_ACTIVITY_LOGS: AdminActivityLog[] = [
     entity_type: 'STORE',
     entity_id: '00000000-0000-0000-0000-000000000001',
     description: 'Store database reset for fresh product additions and order processing.',
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -979,7 +979,7 @@ export const INITIAL_COUPONS: Coupon[] = [
     max_discount_amount: 0,
     status: 'ACTIVE',
     usage_count: 99,
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'coup-1',
@@ -989,7 +989,7 @@ export const INITIAL_COUPONS: Coupon[] = [
     min_order_amount: 999,
     status: 'ACTIVE',
     usage_count: 24,
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'coup-2',
@@ -999,7 +999,7 @@ export const INITIAL_COUPONS: Coupon[] = [
     min_order_amount: 4999,
     status: 'ACTIVE',
     usage_count: 12,
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
 ];
 
@@ -1014,7 +1014,7 @@ export const INITIAL_REVIEWS: any[] = [
     title: 'Exquisite craftsmanship & royal finish!',
     comment: 'The choker set looks even more breathtaking in person. The gold polishing and freshwater pearls are premium quality!',
     status: 'APPROVED',
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'rev-2',
@@ -1026,6 +1026,6 @@ export const INITIAL_REVIEWS: any[] = [
     title: 'Perfect weight and traditional look',
     comment: 'Wore these for a family wedding and received endless compliments! Light on the ears and very elegant.',
     status: 'APPROVED',
-    created_at: new Date().toISOString(),
+    created_at: '2024-01-01T00:00:00.000Z',
   },
 ];

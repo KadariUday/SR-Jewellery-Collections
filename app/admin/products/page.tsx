@@ -25,6 +25,9 @@ export default function AdminProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [tempStock, setTempStock] = useState<number>(0);
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [tempSellingPrice, setTempSellingPrice] = useState<number>(0);
+  const [tempOriginalPrice, setTempOriginalPrice] = useState<number>(0);
 
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
@@ -75,6 +78,17 @@ export default function AdminProductsPage() {
   const handleStockSave = (id: string) => {
     updateProduct(id, { stock_quantity: tempStock });
     setEditingStockId(null);
+  };
+
+  const handlePriceSave = (id: string) => {
+    const orig = tempOriginalPrice > 0 ? tempOriginalPrice : tempSellingPrice;
+    const disc = orig > 0 ? Math.max(0, Math.round(((orig - tempSellingPrice) / orig) * 100)) : 0;
+    updateProduct(id, {
+      selling_price: tempSellingPrice,
+      original_price: orig,
+      discount_percentage: disc,
+    });
+    setEditingPriceId(null);
   };
 
   const handleExportCSV = () => {
@@ -248,10 +262,49 @@ export default function AdminProductsPage() {
                       <td className="p-3.5 font-mono text-slate-600 font-semibold">{p.sku}</td>
 
                       <td className="p-3.5">
-                        <div className="font-bold text-slate-900">{formatCurrency(p.selling_price)}</div>
-                        {p.discount_percentage > 0 && (
-                          <div className="text-[10px] text-slate-400 line-through">
-                            {formatCurrency(p.original_price)} ({p.discount_percentage}% OFF)
+                        {editingPriceId === p.id ? (
+                          <div className="flex flex-col gap-1 w-28">
+                            <input
+                              type="number"
+                              value={tempSellingPrice}
+                              onChange={(e) => setTempSellingPrice(parseFloat(e.target.value) || 0)}
+                              placeholder="Sell Price (₹)"
+                              className="w-full p-1 border border-slate-300 rounded text-xs font-bold text-gold-600 focus:outline-none focus:ring-1 focus:ring-gold-400"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handlePriceSave(p.id)}
+                                className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingPriceId(null)}
+                                className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px]"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => {
+                              setEditingPriceId(p.id);
+                              setTempSellingPrice(p.selling_price);
+                              setTempOriginalPrice(p.original_price);
+                            }}
+                            className="cursor-pointer hover:bg-slate-100 p-1 rounded transition group"
+                            title="Click to edit selling price inline"
+                          >
+                            <div className="font-bold text-slate-900 group-hover:text-gold-600 flex items-center gap-1">
+                              <span>{formatCurrency(p.selling_price)}</span>
+                              <Edit className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                            </div>
+                            {p.discount_percentage > 0 && (
+                              <div className="text-[10px] text-slate-400 line-through">
+                                {formatCurrency(p.original_price)} ({p.discount_percentage}% OFF)
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>

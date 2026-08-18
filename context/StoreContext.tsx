@@ -134,27 +134,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setStoreProfile(parsed);
       }
 
-      const CURRENT_VERSION = 'v2_price_160';
-      const savedVersion = localStorage.getItem('srj_products_version');
+      // Load products from local storage first
       const savedProducts = localStorage.getItem('srj_products');
-      if (savedProducts && savedVersion === CURRENT_VERSION) {
-        const parsed = JSON.parse(savedProducts);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge newly added INITIAL_PRODUCTS if not present in saved local storage
-          const merged = [...parsed];
-          INITIAL_PRODUCTS.forEach((initP) => {
-            if (!merged.some((p) => p.id === initP.id)) {
-              merged.unshift(initP);
-            }
-          });
-          setProducts(merged);
-          safeSetLocalStorage('srj_products', merged);
+      let initialProductsList: Product[] = [];
+
+      if (savedProducts) {
+        try {
+          const parsed = JSON.parse(savedProducts);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            initialProductsList = parsed;
+          }
+        } catch (e) {
+          console.warn('Error parsing saved products', e);
         }
-      } else {
-        setProducts(INITIAL_PRODUCTS);
-        safeSetLocalStorage('srj_products', INITIAL_PRODUCTS);
-        safeSetLocalStorage('srj_products_version', CURRENT_VERSION);
       }
+
+      // If local storage didn't have products, initialize with INITIAL_PRODUCTS
+      if (initialProductsList.length === 0) {
+        initialProductsList = [...INITIAL_PRODUCTS];
+      } else {
+        // Merge any newly added default INITIAL_PRODUCTS missing from local storage
+        const existingIds = new Set(initialProductsList.map((p) => p.id));
+        INITIAL_PRODUCTS.forEach((initP) => {
+          if (!existingIds.has(initP.id)) {
+            initialProductsList.push(initP);
+          }
+        });
+      }
+
+      setProducts(initialProductsList);
+      safeSetLocalStorage('srj_products', initialProductsList);
 
       const savedOrders = localStorage.getItem('srj_orders');
       if (savedOrders) {
@@ -223,8 +232,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
           if (!error && data && data.length > 0) {
-            setProducts(data as Product[]);
-            safeSetLocalStorage('srj_products', data);
+            setProducts((prevLocalProducts) => {
+              const supaProducts = data as Product[];
+              const productMap = new Map<string, Product>();
+
+              // Keep local products (including edited prices) first
+              prevLocalProducts.forEach((p) => productMap.set(p.id, p));
+
+              // Only update from Supabase if Supabase item is strictly newer
+              supaProducts.forEach((sp) => {
+                const localItem = productMap.get(sp.id);
+                if (!localItem) {
+                  productMap.set(sp.id, sp);
+                } else {
+                  const localTime = new Date(localItem.updated_at || 0).getTime();
+                  const supaTime = new Date(sp.updated_at || 0).getTime();
+                  if (supaTime > localTime) {
+                    productMap.set(sp.id, sp);
+                  }
+                }
+              });
+
+              const mergedList = Array.from(productMap.values());
+              safeSetLocalStorage('srj_products', mergedList);
+              return mergedList;
+            });
           }
         });
 
