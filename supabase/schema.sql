@@ -26,11 +26,11 @@ CREATE TABLE IF NOT EXISTS public.categories (
 
 -- 3. PRODUCTS TABLE
 CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    sku TEXT UNIQUE NOT NULL,
-    slug TEXT UNIQUE NOT NULL,
-    category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
+    sku TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    category_id TEXT,
     description TEXT,
     original_price NUMERIC(10,2) NOT NULL,
     selling_price NUMERIC(10,2) NOT NULL,
@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     shipping_info TEXT DEFAULT 'Dispatched within 24-48 hours. Free delivery on orders above ₹1,999.',
     return_info TEXT DEFAULT '7-day easy return policy for unworn items with original tags.',
     tags TEXT[] DEFAULT ARRAY[]::TEXT[],
+    images TEXT[] DEFAULT ARRAY[]::TEXT[],
     is_featured BOOLEAN DEFAULT FALSE,
     is_new_arrival BOOLEAN DEFAULT FALSE,
     is_best_seller BOOLEAN DEFAULT FALSE,

@@ -232,21 +232,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
           if (!error && data && data.length > 0) {
+            const supaProducts = data as Product[];
+            const mergedMap = new Map<string, Product>();
+
+            // Supabase live database products take highest priority
+            supaProducts.forEach((sp) => mergedMap.set(sp.id, sp));
+
             setProducts((prevLocalProducts) => {
-              const supaProducts = data as Product[];
-              const productMap = new Map<string, Product>();
-
-              // Local stored products (including admin price edits) take precedence
-              prevLocalProducts.forEach((p) => productMap.set(p.id, p));
-
-              // Only add products from Supabase if missing from local state
-              supaProducts.forEach((sp) => {
-                if (!productMap.has(sp.id)) {
-                  productMap.set(sp.id, sp);
+              // Preserve any locally created unsynced products
+              prevLocalProducts.forEach((lp) => {
+                if (!mergedMap.has(lp.id)) {
+                  mergedMap.set(lp.id, lp);
                 }
               });
 
-              const mergedList = Array.from(productMap.values());
+              const mergedList = Array.from(mergedMap.values());
               safeSetLocalStorage('srj_products', mergedList);
               return mergedList;
             });
