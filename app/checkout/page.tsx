@@ -50,7 +50,7 @@ export default function CheckoutPage() {
   const shippingFee = subtotal >= storeSettings.free_shipping_threshold ? 0 : storeSettings.shipping_fee;
   const grandTotal = Math.max(0, subtotal - discount) + shippingFee;
 
-  const storeUpiId = storeProfile.upi_id || 'sushmitha.admin@okaxis';
+  const storeUpiId = storeProfile.upi_id || '992438853@fam';
   const upiQrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(
     `upi://pay?pa=${storeUpiId}&pn=${encodeURIComponent(storeProfile.store_name)}&am=${grandTotal}&cu=INR`
   )}&size=250`;

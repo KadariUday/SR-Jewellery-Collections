@@ -146,7 +146,7 @@ export default function AdminStoreProfilePage() {
                 type="text"
                 value={formData.upi_id || ''}
                 onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
-                placeholder="e.g. sushmitha.admin@okaxis or 9876543210@upi"
+                placeholder="e.g. 992438853@fam or 9876543210@upi"
                 className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-gold-700"
               />
             </div>
