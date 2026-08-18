@@ -323,11 +323,38 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
 
+        // Fetch live store settings from Next.js API (/api/store-settings)
+        try {
+          fetch('/api/store-settings')
+            .then((res) => res.json())
+            .then((apiRes) => {
+              if (apiRes && apiRes.settings) {
+                setStoreSettings((prev) => {
+                  const apiTime = new Date(apiRes.settings.updated_at || 0).getTime();
+                  const localTime = new Date(prev.updated_at || 0).getTime();
+                  if (apiTime >= localTime) {
+                    safeSetLocalStorage('srj_store_settings', apiRes.settings);
+                    return apiRes.settings as StoreSettings;
+                  }
+                  return prev;
+                });
+              }
+            })
+            .catch((err) => console.warn('API settings fetch note:', err));
+        } catch (e) {}
+
         // Fetch live store settings from Supabase
         supabase.from('store_settings').select('*').single().then(({ data, error }) => {
           if (!error && data) {
-            setStoreSettings(data as StoreSettings);
-            safeSetLocalStorage('srj_store_settings', data);
+            setStoreSettings((prev) => {
+              const supaTime = new Date(data.updated_at || 0).getTime();
+              const localTime = new Date(prev.updated_at || 0).getTime();
+              if (supaTime >= localTime) {
+                safeSetLocalStorage('srj_store_settings', data);
+                return data as StoreSettings;
+              }
+              return prev;
+            });
           }
         });
       } catch (e) { }
@@ -778,6 +805,15 @@ const prepareProductForSupabase = (p: Product) => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('srj_settings_updated'));
     }
+
+    // Sync to Next.js API route for server-side cross-device persistence
+    try {
+      fetch('/api/store-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('API store settings sync note:', e));
+    } catch (e) {}
 
     // Sync to Supabase
     try {
