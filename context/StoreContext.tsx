@@ -769,6 +769,45 @@ const prepareProductForSupabase = (p: Product) => {
     logActivity('UPDATE_ORDER_STATUS', 'ORDER', orderId, `Updated Order #${orderId} status to ${newStatus}`);
   };
 
+const prepareStoreProfileForSupabase = (p: StoreProfile) => {
+  return {
+    id: p.id || '00000000-0000-0000-0000-000000000001',
+    store_name: String(p.store_name || 'SR Jewellery Collections'),
+    logo_url: String(p.logo_url || '/logo.jpg'),
+    tagline: String(p.tagline || ''),
+    description: String(p.description || ''),
+    email: String(p.email || 'contact@srjewellerycollections.com'),
+    phone: String(p.phone || '+91 8790522579'),
+    whatsapp: String(p.whatsapp || '+918790522579'),
+    address: String(p.address || ''),
+    city: String(p.city || ''),
+    state: String(p.state || ''),
+    pincode: String(p.pincode || ''),
+    map_url: String(p.map_url || ''),
+    instagram_url: String(p.instagram_url || ''),
+    facebook_url: String(p.facebook_url || ''),
+    youtube_url: String(p.youtube_url || ''),
+    business_hours: String(p.business_hours || ''),
+    upi_id: String(p.upi_id || '992438853@fam'),
+    updated_at: p.updated_at || new Date().toISOString(),
+  };
+};
+
+const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
+  return {
+    id: s.id || '00000000-0000-0000-0000-000000000001',
+    shipping_fee: Number(s.shipping_fee || 99),
+    free_shipping_threshold: Number(s.free_shipping_threshold || 1999),
+    tax_percentage: Number(s.tax_percentage || 3),
+    cod_enabled: Boolean(s.cod_enabled),
+    min_cod_amount: Number(s.min_cod_amount || 299),
+    max_cod_amount: Number(s.max_cod_amount || 25000),
+    upi_enabled: Boolean(s.upi_enabled),
+    razorpay_test_mode: Boolean(s.razorpay_test_mode),
+    updated_at: s.updated_at || new Date().toISOString(),
+  };
+};
+
   const updateStoreProfile = (updates: Partial<StoreProfile>) => {
     const updated = { ...storeProfile, ...updates, updated_at: new Date().toISOString() };
     setStoreProfile(updated);
@@ -788,8 +827,9 @@ const prepareProductForSupabase = (p: Product) => {
     } catch (e) {}
 
     // Sync to Supabase
+    const cleanProfile = prepareStoreProfileForSupabase(updated);
     try {
-      supabase.from('store_profile').upsert([updated]).then(({ error }) => {
+      supabase.from('store_profile').upsert([cleanProfile]).then(({ error }) => {
         if (error) console.warn('Supabase store_profile update note:', error.message);
       });
     } catch (e) {}
@@ -816,8 +856,9 @@ const prepareProductForSupabase = (p: Product) => {
     } catch (e) {}
 
     // Sync to Supabase
+    const cleanSettings = prepareStoreSettingsForSupabase(updated);
     try {
-      supabase.from('store_settings').upsert([updated]).then(({ error }) => {
+      supabase.from('store_settings').upsert([cleanSettings]).then(({ error }) => {
         if (error) console.warn('Supabase store_settings update note:', error.message);
       });
     } catch (e) {}
