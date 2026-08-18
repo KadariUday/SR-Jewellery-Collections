@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #FDFBF7;
+  color: #122C24;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-serif {
+  font-family: var(--font-serif);
+}
+
+/* Custom Gold & Metallic Gradients */
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #F3E5AB 0%, #D4AF37 50%, #B8860B 100%);
+}
+
+.bg-gold-gradient-3d {
+  background: linear-gradient(145deg, #FFF3CD 0%, #E6C260 40%, #B8860B 100%);
+  box-shadow: 0 10px 20px -5px rgba(212, 175, 55, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #F3E5AB 0%, #D4AF37 50%, #996515 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-emerald-gradient {
+  background: linear-gradient(135deg, #122C24 0%, #0B1E19 100%);
+}
+
+/* 3D Perspective & Depth Transformations */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.card-3d {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-style: preserve-3d;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+.card-3d:hover {
+  transform: translateY(-8px) rotateX(3deg) rotateY(-2deg) scale(1.015);
+  box-shadow: 0 25px 35px -10px rgba(0, 0, 0, 0.15), 0 15px 20px -5px rgba(212, 175, 55, 0.25);
+}
+
+.card-3d-gold {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 12px 28px -5px rgba(212, 175, 55, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.card-3d-gold:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 25px 40px -5px rgba(212, 175, 55, 0.45), 0 10px 20px -5px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 1);
+}
+
+/* 3D Glassmorphism Depth */
+.glass-3d {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.glass-3d-dark {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* 3D Shimmer Effect */
+@keyframes shimmer3d {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(200%) rotate(45deg); }
+}
+
+.shimmer-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-container::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 70%
+  );
+  animation: shimmer3d 4s infinite linear;
+  pointer-events: none;
+}
+
+/* 3D Button Depth */
+.btn-3d-gold {
+  position: relative;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 0 #996515, 0 12px 20px rgba(212, 175, 55, 0.4);
+}
+
+.btn-3d-gold:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #996515, 0 4px 10px rgba(212, 175, 55, 0.3);
+}
+
+.btn-3d-dark {
+  position: relative;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 0 #09121E, 0 12px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-3d-dark:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #09121E, 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F0ECE1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4AF37;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B8860B;
+}
