@@ -182,9 +182,13 @@ export default function CheckoutPage() {
         return;
       }
 
+      if (data.order) {
+        addOrder(data.order);
+      }
+
       setShowUpiModal(false);
       clearCart();
-      router.push(`/order-confirmation?orderNumber=${data.order.order_number}`);
+      router.push(`/order-confirmation?orderNumber=${data.order?.order_number || data.orderNumber}`);
     } catch (e: any) {
       alert('Network error while processing order. Please check your connection.');
       setLoading(false);

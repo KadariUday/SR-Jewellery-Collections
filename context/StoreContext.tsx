@@ -19,7 +19,7 @@ import {
   Coupon,
   ProductReview,
 } from '@/lib/types';
-import { normalizePhoneNumber } from '@/lib/utils';
+import { normalizePhoneNumber, generateOrderNumber } from '@/lib/utils';
 import {
   INITIAL_PRODUCTS,
   INITIAL_CATEGORIES,
@@ -681,12 +681,13 @@ const prepareProductForSupabase = (p: Product) => {
     logActivity('ADJUST_INVENTORY', 'PRODUCT', productId, `Changed stock for "${prod.name}" from ${previousStock} to ${newStock} (${reason})`);
   };
 
-  const addOrder = (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at'>): Order => {
-    const id = `ord-${Date.now()}`;
-    const now = new Date().toISOString();
+  const addOrder = (orderData: Partial<Order> & { items: any[] }): Order => {
+    const id = orderData.id || `ord-${Date.now()}`;
+    const orderNumber = orderData.order_number || generateOrderNumber();
+    const now = orderData.created_at || new Date().toISOString();
 
     // Sanitize item images to prevent bloating storage
-    const sanitizedItems = orderData.items.map((item) => ({
+    const sanitizedItems = (orderData.items || []).map((item) => ({
       ...item,
       product_image: item.product_image && item.product_image.length > 500
         ? 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=400'
@@ -694,19 +695,51 @@ const prepareProductForSupabase = (p: Product) => {
     }));
 
     const newOrder: Order = {
-      ...orderData,
-      items: sanitizedItems,
       id,
+      order_number: orderNumber,
+      customer_id: orderData.customer_id || '',
+      customer_name: orderData.customer_name || 'Valued Customer',
+      customer_email: orderData.customer_email || 'customer@srjewellerycollections.com',
+      customer_phone: orderData.customer_phone || '+91 98765 00000',
+      total_amount: orderData.total_amount || 0,
+      subtotal: orderData.subtotal || 0,
+      discount_amount: orderData.discount_amount || 0,
+      shipping_fee: orderData.shipping_fee || 0,
+      payment_method: orderData.payment_method || 'COD',
+      payment_status: orderData.payment_status || 'PENDING',
+      order_status: orderData.order_status || 'ORDER PLACED',
+      delivery_address: orderData.delivery_address || {
+        id: `addr-${Date.now()}`,
+        customer_id: '',
+        label: 'Home',
+        full_name: 'Valued Customer',
+        phone: '+91 98765 00000',
+        address_line1: 'Store Delivery',
+        city: 'Hyderabad',
+        state: 'Telangana',
+        pincode: '500001',
+        is_default: true,
+      },
+      notes: orderData.notes,
+      items: sanitizedItems,
       created_at: now,
       updated_at: now,
     };
 
-    const updatedOrders = [newOrder, ...orders];
-    setOrders(updatedOrders);
-    safeSetLocalStorage('srj_orders', updatedOrders);
+    setOrders((prev) => {
+      const map = new Map(prev.map((o) => [o.id, o]));
+      map.set(newOrder.id, newOrder);
+      const updatedList = Array.from(map.values());
+      safeSetLocalStorage('srj_orders', updatedList);
+      return updatedList;
+    });
 
-    // Deduct stock
-    newOrder.items.forEach((item) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_orders_updated'));
+    }
+
+    // Deduct stock locally
+    sanitizedItems.forEach((item) => {
       const prod = products.find((p) => p.id === item.product_id);
       if (prod) {
         const nextStock = Math.max(0, prod.stock_quantity - item.quantity);
