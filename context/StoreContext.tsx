@@ -299,14 +299,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
       } catch (e) {}
 
-      // 5. Fetch live orders from Supabase
+      // 5. Fetch live orders via server API route (Service Role Key guarantees all store orders are fetched)
       try {
-        supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            setOrders(data as Order[]);
-            safeSetLocalStorage('srj_orders', data);
-          }
-        });
+        fetch('/api/orders')
+          .then((res) => res.json())
+          .then((apiData) => {
+            if (apiData.success && Array.isArray(apiData.orders) && apiData.orders.length > 0) {
+              setOrders(apiData.orders);
+              safeSetLocalStorage('srj_orders', apiData.orders);
+            } else {
+              supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+                if (!error && data && data.length > 0) {
+                  setOrders(data as Order[]);
+                  safeSetLocalStorage('srj_orders', data);
+                }
+              });
+            }
+          })
+          .catch(() => {});
       } catch (e) {}
 
       // 6. Fetch live coupons from Supabase
@@ -947,6 +957,23 @@ const prepareProductForSupabase = (p: Product) => {
 
     const targetOrd = updatedOrders.find((o) => o.id === orderId);
     if (targetOrd) {
+      // 1. Sync via Server API route (Service Role Key bypasses RLS)
+      try {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId,
+            orderStatus: newStatus,
+            paymentStatus: targetOrd.payment_status,
+            note,
+            courierName,
+            trackingNumber,
+          }),
+        }).catch((e) => console.warn('API order update note:', e));
+      } catch (e) {}
+
+      // 2. Direct Supabase update fallback
       try {
         supabase
           .from('orders')
