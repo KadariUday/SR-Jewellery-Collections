@@ -58,10 +58,10 @@ export default function OrderDetailPage() {
     );
   }
 
-  const handleStatusUpdate = (e: React.FormEvent) => {
+  const handleStatusUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateOrderStatus(order.id, newStatus, note, courierName, trackingNumber, paymentStatus);
-    alert(`Order #${order.order_number} status updated to ${newStatus} (${paymentStatus})`);
+    await updateOrderStatus(order.id, newStatus, note, courierName, trackingNumber, paymentStatus);
+    alert(`Order #${order.order_number} status saved successfully!\nStatus: ${newStatus}\nPayment: ${paymentStatus}`);
   };
 
   const handleExportSingleCSV = () => {

@@ -895,7 +895,7 @@ const prepareProductForSupabase = (p: Product) => {
     return newOrder;
   };
 
-  const updateOrderStatus = (
+  const updateOrderStatus = async (
     orderId: string,
     newStatus: OrderStatus,
     note?: string,
@@ -903,18 +903,21 @@ const prepareProductForSupabase = (p: Product) => {
     trackingNumber?: string,
     overridePaymentStatus?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'CANCELLED'
   ) => {
+    const targetOrd = orders.find((o) => o.id === orderId || o.order_number === orderId);
+    const targetId = targetOrd?.id || orderId;
+    const targetOrderNumber = targetOrd?.order_number || orderId;
+
+    let computedPaymentStatus = overridePaymentStatus || targetOrd?.payment_status || 'PENDING';
+    if (overridePaymentStatus) {
+      computedPaymentStatus = overridePaymentStatus;
+    } else if (newStatus === 'DELIVERED' || newStatus === 'CONFIRMED' || newStatus === 'SHIPPED') {
+      computedPaymentStatus = 'SUCCESS';
+    }
+
+    // 1. Optimistic React State & LocalStorage update
     const updatedOrders = orders.map((ord) => {
-      if (ord.id === orderId || ord.order_number === orderId) {
+      if (ord.id === targetId || ord.order_number === targetOrderNumber) {
         const oldStatus = ord.order_status;
-        let paymentStatus = overridePaymentStatus || ord.payment_status;
-
-        // Auto update payment status to SUCCESS when order is DELIVERED, CONFIRMED, or SHIPPED
-        if (overridePaymentStatus) {
-          paymentStatus = overridePaymentStatus;
-        } else if (newStatus === 'DELIVERED' || newStatus === 'CONFIRMED' || newStatus === 'SHIPPED') {
-          paymentStatus = 'SUCCESS';
-        }
-
         const newHistory = [
           ...(ord.status_history || []),
           {
@@ -943,7 +946,7 @@ const prepareProductForSupabase = (p: Product) => {
         return {
           ...ord,
           order_status: newStatus,
-          payment_status: paymentStatus,
+          payment_status: computedPaymentStatus,
           status_history: newHistory,
           delivery_details: deliveryDetails,
           updated_at: new Date().toISOString(),
@@ -959,41 +962,47 @@ const prepareProductForSupabase = (p: Product) => {
       window.dispatchEvent(new Event('srj_orders_updated'));
     }
 
-    const targetOrd = updatedOrders.find((o) => o.id === orderId || o.order_number === orderId);
-    if (targetOrd) {
-      // 1. Sync via Server API route (Service Role Key bypasses RLS)
-      try {
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: targetOrd.id,
-            orderStatus: newStatus,
-            paymentStatus: targetOrd.payment_status,
-            note,
-            courierName,
-            trackingNumber,
-          }),
-        }).catch((e) => console.warn('API order update note:', e));
-      } catch (e) {}
-
-      // 2. Direct Supabase update fallback
-      try {
-        supabase
-          .from('orders')
-          .update({
-            order_status: newStatus,
-            payment_status: targetOrd.payment_status,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', targetOrd.id)
-          .then(({ error }) => {
-            if (error) console.warn('Supabase order status update note:', error.message);
-          });
-      } catch (e) {}
+    // 2. Server API Route Update via Service Role Client
+    try {
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: targetId,
+          orderStatus: newStatus,
+          paymentStatus: computedPaymentStatus,
+          note,
+          courierName,
+          trackingNumber,
+        }),
+      });
+    } catch (e) {
+      console.warn('API order update note:', e);
     }
 
-    logActivity('UPDATE_ORDER_STATUS', 'ORDER', orderId, `Updated Order #${orderId} status to ${newStatus}`);
+    // 3. Direct Supabase Client update fallback
+    try {
+      await supabase
+        .from('orders')
+        .update({
+          order_status: newStatus,
+          payment_status: computedPaymentStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetId);
+    } catch (e) {}
+
+    // 4. Re-fetch fresh live orders from server API to guarantee 100% database sync
+    try {
+      const res = await fetch('/api/orders');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
+        setOrders(data.orders);
+        safeSetLocalStorage('srj_orders', data.orders);
+      }
+    } catch (e) {}
+
+    logActivity('UPDATE_ORDER_STATUS', 'ORDER', targetId, `Updated Order #${targetOrderNumber} status to ${newStatus}`);
   };
 
 const prepareStoreProfileForSupabase = (p: StoreProfile) => {
