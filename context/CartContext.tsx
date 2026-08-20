@@ -39,7 +39,7 @@ const safeSetLocalStorage = (key: string, value: any) => {
 };
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { products } = useStore();
+  const { products, coupons: storeCoupons } = useStore();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number } | null>(null);
@@ -152,14 +152,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    let availableCoupons: any[] = [];
-    try {
-      const saved = localStorage.getItem('srj_coupons');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) availableCoupons = parsed;
-      }
-    } catch (e) {}
+    let availableCoupons: any[] = storeCoupons && storeCoupons.length > 0 ? storeCoupons : [];
+    if (availableCoupons.length === 0) {
+      try {
+        const saved = localStorage.getItem('srj_coupons');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) availableCoupons = parsed;
+        }
+      } catch (e) {}
+    }
 
     // Fallback default coupons if localStorage is empty
     if (availableCoupons.length === 0) {

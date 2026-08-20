@@ -43,15 +43,7 @@ function loadProductsFromServer(): Product[] {
     });
   }
 
-  return loaded.map((p) => {
-    const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
-    return {
-      ...p,
-      selling_price: 160,
-      original_price: orig,
-      discount_percentage: Math.round(((orig - 160) / orig) * 100),
-    };
-  });
+  return loaded;
 }
 
 function saveProductsToServer(products: Product[]): boolean {

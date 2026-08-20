@@ -150,7 +150,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // Initialize with INITIAL_PRODUCTS and enforce 160 selling price for all earring products
+      // Initialize with INITIAL_PRODUCTS
       if (initialProductsList.length === 0) {
         initialProductsList = [...INITIAL_PRODUCTS];
       } else {
@@ -162,17 +162,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         });
       }
-
-      // Enforce ₹160 price across all earring items
-      initialProductsList = initialProductsList.map((p) => {
-        const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
-        return {
-          ...p,
-          selling_price: 160,
-          original_price: orig,
-          discount_percentage: Math.round(((orig - 160) / orig) * 100),
-        };
-      });
 
       setProducts(initialProductsList);
       safeSetLocalStorage('srj_products', initialProductsList);
@@ -295,17 +284,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           });
 
-          // Enforce ₹160 selling price across all products
-          loaded = loaded.map((p) => {
-            const orig = !p.original_price || p.original_price < 160 ? 250 : p.original_price;
-            return {
-              ...p,
-              selling_price: 160,
-              original_price: orig,
-              discount_percentage: Math.round(((orig - 160) / orig) * 100),
-            };
-          });
-
           setProducts(loaded);
           safeSetLocalStorage('srj_products', loaded);
         });
@@ -327,6 +305,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (!error && data && data.length > 0) {
             setOrders(data as Order[]);
             safeSetLocalStorage('srj_orders', data);
+          }
+        });
+      } catch (e) {}
+
+      // 6. Fetch live coupons from Supabase
+      try {
+        supabase.from('coupons').select('*').then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const mapped: Coupon[] = data.map((c: any) => ({
+              id: c.id,
+              code: c.code,
+              discount_type: c.discount_type,
+              discount_value: Number(c.discount_value),
+              min_order_amount: Number(c.min_order_value || 0),
+              max_discount_amount: Number(c.max_discount || 0),
+              status: c.is_active ? 'ACTIVE' : 'EXPIRED',
+              usage_count: c.usage_count || 0,
+              created_at: c.created_at,
+            }));
+            setCoupons(mapped);
+            safeSetLocalStorage('srj_coupons', mapped);
+          }
+        });
+      } catch (e) {}
+
+      // 7. Fetch live reviews from Supabase
+      try {
+        supabase.from('reviews').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setReviews(data as ProductReview[]);
+            safeSetLocalStorage('srj_reviews', data);
+          }
+        });
+      } catch (e) {}
+
+      // 8. Fetch live contact messages from Supabase
+      try {
+        supabase.from('contact_messages').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            setMessages(data as ContactMessage[]);
+            safeSetLocalStorage('srj_messages', data);
           }
         });
       } catch (e) {}
@@ -416,6 +435,49 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
           }
         )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'coupons' },
+          (payload) => {
+            if (payload.new) {
+              const c: any = payload.new;
+              const couponObj: Coupon = {
+                id: c.id,
+                code: c.code,
+                discount_type: c.discount_type,
+                discount_value: Number(c.discount_value),
+                min_order_amount: Number(c.min_order_value || 0),
+                max_discount_amount: Number(c.max_discount || 0),
+                status: c.is_active ? 'ACTIVE' : 'EXPIRED',
+                usage_count: c.usage_count || 0,
+                created_at: c.created_at,
+              };
+              setCoupons((prev) => {
+                const map = new Map(prev.map((cp) => [cp.id, cp]));
+                map.set(couponObj.id, couponObj);
+                const updatedList = Array.from(map.values());
+                safeSetLocalStorage('srj_coupons', updatedList);
+                return updatedList;
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'reviews' },
+          (payload) => {
+            if (payload.new) {
+              const r = payload.new as ProductReview;
+              setReviews((prev) => {
+                const map = new Map(prev.map((rev) => [rev.id, rev]));
+                map.set(r.id, r);
+                const updatedList = Array.from(map.values());
+                safeSetLocalStorage('srj_reviews', updatedList);
+                return updatedList;
+              });
+            }
+          }
+        )
         .subscribe();
 
       return () => {
@@ -426,16 +488,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Real-time cross-tab and same-window synchronization for products, profile, and settings
+  // Real-time cross-tab and same-window synchronization for products, profile, settings, coupons, reviews, messages, orders
   useEffect(() => {
     const syncProducts = () => {
       try {
         const saved = localStorage.getItem('srj_products');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setProducts(parsed);
-          }
+          if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
         }
       } catch (e) {}
     };
@@ -455,25 +515,73 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch (e) {}
     };
 
+    const syncCoupons = () => {
+      try {
+        const saved = localStorage.getItem('srj_coupons');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCoupons(parsed);
+        }
+      } catch (e) {}
+    };
+
+    const syncReviews = () => {
+      try {
+        const saved = localStorage.getItem('srj_reviews');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setReviews(parsed);
+        }
+      } catch (e) {}
+    };
+
+    const syncOrders = () => {
+      try {
+        const saved = localStorage.getItem('srj_orders');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setOrders(parsed);
+        }
+      } catch (e) {}
+    };
+
+    const syncMessages = () => {
+      try {
+        const saved = localStorage.getItem('srj_messages');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setMessages(parsed);
+        }
+      } catch (e) {}
+    };
+
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'srj_products') {
-        syncProducts();
-      }
-      if (e.key === 'srj_store_profile' || e.key === 'srj_store_settings') {
-        syncProfileAndSettings();
-      }
+      if (e.key === 'srj_products') syncProducts();
+      if (e.key === 'srj_store_profile' || e.key === 'srj_store_settings') syncProfileAndSettings();
+      if (e.key === 'srj_coupons') syncCoupons();
+      if (e.key === 'srj_reviews') syncReviews();
+      if (e.key === 'srj_orders') syncOrders();
+      if (e.key === 'srj_messages') syncMessages();
     };
 
     window.addEventListener('storage', handleStorage);
     window.addEventListener('srj_products_updated', syncProducts);
     window.addEventListener('srj_profile_updated', syncProfileAndSettings);
     window.addEventListener('srj_settings_updated', syncProfileAndSettings);
+    window.addEventListener('srj_coupons_updated', syncCoupons);
+    window.addEventListener('srj_reviews_updated', syncReviews);
+    window.addEventListener('srj_orders_updated', syncOrders);
+    window.addEventListener('srj_messages_updated', syncMessages);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('srj_products_updated', syncProducts);
       window.removeEventListener('srj_profile_updated', syncProfileAndSettings);
       window.removeEventListener('srj_settings_updated', syncProfileAndSettings);
+      window.removeEventListener('srj_coupons_updated', syncCoupons);
+      window.removeEventListener('srj_reviews_updated', syncReviews);
+      window.removeEventListener('srj_orders_updated', syncOrders);
+      window.removeEventListener('srj_messages_updated', syncMessages);
     };
   }, []);
 
@@ -590,7 +698,17 @@ const prepareProductForSupabase = (p: Product) => {
     let updatedItem: Product | undefined;
     const updated = products.map((p) => {
       if (p.id === id) {
-        updatedItem = { ...p, ...updates, updated_at: now };
+        const selling = updates.selling_price !== undefined ? Number(updates.selling_price) : p.selling_price;
+        const orig = updates.original_price !== undefined ? Number(updates.original_price) : (p.original_price || selling);
+        const discount_percentage = orig > selling ? Math.round(((orig - selling) / orig) * 100) : 0;
+        updatedItem = {
+          ...p,
+          ...updates,
+          selling_price: selling,
+          original_price: orig,
+          discount_percentage: updates.discount_percentage !== undefined ? updates.discount_percentage : discount_percentage,
+          updated_at: now,
+        };
         return updatedItem;
       }
       return p;
@@ -823,6 +941,27 @@ const prepareProductForSupabase = (p: Product) => {
     setOrders(updatedOrders);
     safeSetLocalStorage('srj_orders', updatedOrders);
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('srj_orders_updated'));
+    }
+
+    const targetOrd = updatedOrders.find((o) => o.id === orderId);
+    if (targetOrd) {
+      try {
+        supabase
+          .from('orders')
+          .update({
+            order_status: newStatus,
+            payment_status: targetOrd.payment_status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', orderId)
+          .then(({ error }) => {
+            if (error) console.warn('Supabase order status update note:', error.message);
+          });
+      } catch (e) {}
+    }
+
     logActivity('UPDATE_ORDER_STATUS', 'ORDER', orderId, `Updated Order #${orderId} status to ${newStatus}`);
   };
 
@@ -962,6 +1101,7 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     setMessages((prev) => {
       const updated = [newMsg, ...prev];
       safeSetLocalStorage('srj_messages', updated);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_messages_updated'));
       return updated;
     });
 
@@ -985,8 +1125,14 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     setMessages((prev) => {
       const updated = prev.map((m) => (m.id === id ? { ...m, status } : m));
       safeSetLocalStorage('srj_messages', updated);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_messages_updated'));
       return updated;
     });
+    try {
+      supabase.from('contact_messages').update({ status }).eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase message status update note:', error.message);
+      });
+    } catch (e) {}
     logActivity('UPDATE_MESSAGE_STATUS', 'MESSAGE', id, `Updated message ID ${id} status to ${status}`);
   };
 
@@ -1001,8 +1147,23 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     setCoupons((prev) => {
       const updated = [newCoupon, ...prev];
       safeSetLocalStorage('srj_coupons', updated);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_coupons_updated'));
       return updated;
     });
+
+    try {
+      supabase.from('coupons').upsert([{
+        code: newCoupon.code,
+        discount_type: newCoupon.discount_type,
+        discount_value: newCoupon.discount_value,
+        min_order_value: newCoupon.min_order_amount,
+        max_discount: newCoupon.max_discount_amount,
+        is_active: newCoupon.status === 'ACTIVE',
+      }]).then(({ error }) => {
+        if (error) console.warn('Supabase coupon insert note:', error.message);
+      });
+    } catch (e) {}
+
     logActivity('CREATE_COUPON', 'COUPON', newCoupon.id, `Created new promo coupon code "${newCoupon.code}"`);
     return newCoupon;
   };
@@ -1011,8 +1172,16 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     setCoupons((prev) => {
       const updated = prev.map((c) => (c.id === id ? { ...c, status } : c));
       safeSetLocalStorage('srj_coupons', updated);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_coupons_updated'));
       return updated;
     });
+
+    try {
+      supabase.from('coupons').update({ is_active: status === 'ACTIVE' }).eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase coupon status update note:', error.message);
+      });
+    } catch (e) {}
+
     logActivity('UPDATE_COUPON_STATUS', 'COUPON', id, `Updated coupon ID ${id} status to ${status}`);
   };
 
@@ -1021,9 +1190,16 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
       const coupon = prev.find((c) => c.id === id);
       const updated = prev.filter((c) => c.id !== id);
       safeSetLocalStorage('srj_coupons', updated);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_coupons_updated'));
       logActivity('DELETE_COUPON', 'COUPON', id, `Deleted coupon code "${coupon?.code || id}"`);
       return updated;
     });
+
+    try {
+      supabase.from('coupons').delete().eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase coupon delete note:', error.message);
+      });
+    } catch (e) {}
   };
 
   const logActivity = (action: string, entity_type: string, entity_id: string, description: string) => {
@@ -1050,6 +1226,20 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     const updated = [newRev, ...reviews];
     setReviews(updated);
     safeSetLocalStorage('srj_reviews', updated);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_reviews_updated'));
+
+    try {
+      supabase.from('reviews').insert([{
+        product_id: newRev.product_id,
+        customer_name: newRev.customer_name,
+        rating: newRev.rating,
+        comment: newRev.comment,
+        status: 'APPROVED',
+      }]).then(({ error }) => {
+        if (error) console.warn('Supabase review insert note:', error.message);
+      });
+    } catch (e) {}
+
     return newRev;
   };
 
@@ -1057,12 +1247,26 @@ const prepareStoreSettingsForSupabase = (s: StoreSettings) => {
     const updated = reviews.map((r) => (r.id === id ? { ...r, status } : r));
     setReviews(updated);
     safeSetLocalStorage('srj_reviews', updated);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_reviews_updated'));
+
+    try {
+      supabase.from('reviews').update({ status }).eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase review status update note:', error.message);
+      });
+    } catch (e) {}
   };
 
   const deleteReview = (id: string) => {
     const updated = reviews.filter((r) => r.id !== id);
     setReviews(updated);
     safeSetLocalStorage('srj_reviews', updated);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('srj_reviews_updated'));
+
+    try {
+      supabase.from('reviews').delete().eq('id', id).then(({ error }) => {
+        if (error) console.warn('Supabase review delete note:', error.message);
+      });
+    } catch (e) {}
   };
 
   return (
