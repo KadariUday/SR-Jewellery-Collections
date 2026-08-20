@@ -17,7 +17,7 @@ import { formatCurrency, formatDate, getOrderStatusBadgeClass } from '@/lib/util
 import { exportToCSV } from '@/lib/exportUtils';
 
 export default function AdminOrdersPage() {
-  const { orders } = useStore();
+  const { orders, updateOrderStatus } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
@@ -210,16 +210,25 @@ export default function AdminOrdersPage() {
 
                       <td className="p-3.5">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            o.payment_method === 'UPI' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            o.payment_status === 'SUCCESS'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-amber-100 text-amber-900 border-amber-300'
                           }`}>
-                            {o.payment_method}
+                            {o.payment_method} ({o.payment_status === 'SUCCESS' ? 'COMPLETED' : 'PENDING'})
                           </span>
-                          <span className={`text-[9px] font-bold ${
-                            o.payment_status === 'SUCCESS' ? 'text-emerald-600' : 'text-amber-600'
-                          }`}>
-                            {o.payment_status}
-                          </span>
+
+                          {o.payment_status !== 'SUCCESS' && (
+                            <button
+                              onClick={() => {
+                                updateOrderStatus(o.id, o.order_status, 'UPI Payment approved by admin', '', '', 'SUCCESS');
+                              }}
+                              className="px-2 py-0.5 bg-emerald-600 text-white hover:bg-emerald-700 text-[9px] font-bold rounded shadow-sm transition mt-0.5"
+                            >
+                              ✓ Approve Payment
+                            </button>
+                          )}
+
                           {(o.upi_utr || o.notes?.includes('UTR')) && (
                             <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-900 px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1 mt-0.5" title="Click to copy UTR">
                               <span className="font-sans text-[9px] uppercase font-semibold text-amber-700">UTR:</span>
@@ -230,36 +239,31 @@ export default function AdminOrdersPage() {
                       </td>
 
                       <td className="p-3.5">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${badgeClass}`}>
-                          {o.order_status}
-                        </span>
+                        <select
+                          value={o.order_status}
+                          onChange={(e) => {
+                            const newSt = e.target.value as any;
+                            updateOrderStatus(o.id, newSt, `Status updated to ${newSt}`, '', '');
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border cursor-pointer ${badgeClass}`}
+                        >
+                          <option value="ORDER PLACED">ORDER PLACED</option>
+                          <option value="CONFIRMED">CONFIRMED</option>
+                          <option value="PACKED">PACKED</option>
+                          <option value="SHIPPED">SHIPPED</option>
+                          <option value="DELIVERED">DELIVERED</option>
+                          <option value="CANCELLED">CANCELLED</option>
+                        </select>
                       </td>
 
                       <td className="p-3.5 text-right">
-                        {o.order_status === 'DELIVERED' ? (
-                          <Link
-                            href={`/admin/orders/${o.id}`}
-                            className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg font-bold hover:bg-emerald-100 transition inline-flex items-center gap-1 text-xs shadow-sm"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Done</span>
-                          </Link>
-                        ) : o.order_status === 'CANCELLED' || o.order_status === 'REFUNDED' ? (
-                          <Link
-                            href={`/admin/orders/${o.id}`}
-                            className="px-3 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg font-bold hover:bg-slate-200 transition inline-flex items-center gap-1 text-xs"
-                          >
-                            <span>Closed</span>
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/orders/${o.id}`}
-                            className="px-3 py-1.5 bg-slate-900 text-gold-400 rounded-lg font-semibold hover:bg-slate-800 transition inline-flex items-center gap-1 shadow-sm"
-                          >
-                            <span>Process</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </Link>
-                        )}
+                        <Link
+                          href={`/admin/orders/${o.id}`}
+                          className="px-3 py-1.5 bg-slate-900 text-gold-400 rounded-lg font-semibold hover:bg-slate-800 transition inline-flex items-center gap-1 shadow-sm text-xs"
+                        >
+                          <span>Manage</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
                       </td>
                     </tr>
                   );

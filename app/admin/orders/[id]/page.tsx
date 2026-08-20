@@ -29,9 +29,10 @@ export default function OrderDetailPage() {
   const { orders, updateOrderStatus, storeProfile } = useStore();
 
   const orderId = params?.id as string;
-  const order = orders.find((o) => o.id === orderId);
+  const order = orders.find((o) => o.id === orderId || o.order_number === orderId);
 
   const [newStatus, setNewStatus] = useState<OrderStatus>(order?.order_status || 'ORDER PLACED');
+  const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'CANCELLED'>(order?.payment_status || 'PENDING');
   const [note, setNote] = useState('');
   const [courierName, setCourierName] = useState(order?.delivery_details?.courier_name || 'BlueDart Express');
   const [trackingNumber, setTrackingNumber] = useState(order?.delivery_details?.tracking_number || 'BD-884920192');
@@ -49,8 +50,8 @@ export default function OrderDetailPage() {
 
   const handleStatusUpdate = (e: React.FormEvent) => {
     e.preventDefault();
-    updateOrderStatus(orderId, newStatus, note, courierName, trackingNumber);
-    alert(`Order #${order.order_number} status updated to ${newStatus}`);
+    updateOrderStatus(order.id, newStatus, note, courierName, trackingNumber, paymentStatus);
+    alert(`Order #${order.order_number} status updated to ${newStatus} (${paymentStatus})`);
   };
 
   const handleExportSingleCSV = () => {
@@ -144,7 +145,7 @@ export default function OrderDetailPage() {
             </h3>
 
             <form onSubmit={handleStatusUpdate} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                     New Order Status
@@ -160,6 +161,22 @@ export default function OrderDetailPage() {
                     <option value="SHIPPED">SHIPPED</option>
                     <option value="DELIVERED">DELIVERED</option>
                     <option value="CANCELLED">CANCELLED</option>
+                    <option value="REFUNDED">REFUNDED</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Payment Status
+                  </label>
+                  <select
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value as any)}
+                    className="w-full px-3.5 py-2 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-400"
+                  >
+                    <option value="SUCCESS">SUCCESS (Payment Verified & Completed)</option>
+                    <option value="PENDING">PENDING (Awaiting Payment / Verification)</option>
+                    <option value="FAILED">FAILED</option>
                     <option value="REFUNDED">REFUNDED</option>
                   </select>
                 </div>

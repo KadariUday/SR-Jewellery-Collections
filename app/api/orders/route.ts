@@ -46,9 +46,8 @@ export async function POST(req: NextRequest) {
     const { data: updatedOrder, error } = await supabaseAdmin
       .from('orders')
       .update(updatePayload)
-      .eq('id', orderId)
-      .select('*')
-      .single();
+      .or(`id.eq.${orderId},order_number.eq.${orderId}`)
+      .select('*');
 
     if (error) {
       console.warn('Error updating order status:', error.message);

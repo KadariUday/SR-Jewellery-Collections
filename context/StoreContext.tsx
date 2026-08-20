@@ -82,7 +82,8 @@ interface StoreContextType {
     newStatus: OrderStatus,
     note?: string,
     courierName?: string,
-    trackingNumber?: string
+    trackingNumber?: string,
+    overridePaymentStatus?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'CANCELLED'
   ) => void;
 
   // Profile & settings actions
@@ -899,15 +900,18 @@ const prepareProductForSupabase = (p: Product) => {
     newStatus: OrderStatus,
     note?: string,
     courierName?: string,
-    trackingNumber?: string
+    trackingNumber?: string,
+    overridePaymentStatus?: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED' | 'CANCELLED'
   ) => {
     const updatedOrders = orders.map((ord) => {
-      if (ord.id === orderId) {
+      if (ord.id === orderId || ord.order_number === orderId) {
         const oldStatus = ord.order_status;
-        let paymentStatus = ord.payment_status;
+        let paymentStatus = overridePaymentStatus || ord.payment_status;
 
-        // Auto update payment status for COD on delivery
-        if (newStatus === 'DELIVERED' && ord.payment_method === 'COD') {
+        // Auto update payment status to SUCCESS when order is DELIVERED, CONFIRMED, or SHIPPED
+        if (overridePaymentStatus) {
+          paymentStatus = overridePaymentStatus;
+        } else if (newStatus === 'DELIVERED' || newStatus === 'CONFIRMED' || newStatus === 'SHIPPED') {
           paymentStatus = 'SUCCESS';
         }
 
@@ -915,7 +919,7 @@ const prepareProductForSupabase = (p: Product) => {
           ...(ord.status_history || []),
           {
             id: `hist-${Date.now()}`,
-            order_id: orderId,
+            order_id: ord.id,
             old_status: oldStatus,
             new_status: newStatus,
             admin_name: 'Sushmitha Admin',
@@ -927,7 +931,7 @@ const prepareProductForSupabase = (p: Product) => {
         const deliveryDetails = {
           ...(ord.delivery_details || {
             id: `del-${Date.now()}`,
-            order_id: orderId,
+            order_id: ord.id,
             courier_name: '',
             tracking_number: '',
             shipping_provider: '',
@@ -955,7 +959,7 @@ const prepareProductForSupabase = (p: Product) => {
       window.dispatchEvent(new Event('srj_orders_updated'));
     }
 
-    const targetOrd = updatedOrders.find((o) => o.id === orderId);
+    const targetOrd = updatedOrders.find((o) => o.id === orderId || o.order_number === orderId);
     if (targetOrd) {
       // 1. Sync via Server API route (Service Role Key bypasses RLS)
       try {
@@ -963,7 +967,7 @@ const prepareProductForSupabase = (p: Product) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            orderId,
+            orderId: targetOrd.id,
             orderStatus: newStatus,
             paymentStatus: targetOrd.payment_status,
             note,
@@ -982,7 +986,7 @@ const prepareProductForSupabase = (p: Product) => {
             payment_status: targetOrd.payment_status,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', orderId)
+          .or(`id.eq.${targetOrd.id},order_number.eq.${targetOrd.order_number}`)
           .then(({ error }) => {
             if (error) console.warn('Supabase order status update note:', error.message);
           });
