@@ -986,7 +986,7 @@ const prepareProductForSupabase = (p: Product) => {
             payment_status: targetOrd.payment_status,
             updated_at: new Date().toISOString(),
           })
-          .or(`id.eq.${targetOrd.id},order_number.eq.${targetOrd.order_number}`)
+          .eq('id', targetOrd.id)
           .then(({ error }) => {
             if (error) console.warn('Supabase order status update note:', error.message);
           });

@@ -37,6 +37,16 @@ export default function OrderDetailPage() {
   const [courierName, setCourierName] = useState(order?.delivery_details?.courier_name || 'BlueDart Express');
   const [trackingNumber, setTrackingNumber] = useState(order?.delivery_details?.tracking_number || 'BD-884920192');
 
+  // Sync state when order data finishes loading asynchronously
+  React.useEffect(() => {
+    if (order) {
+      setNewStatus(order.order_status);
+      setPaymentStatus(order.payment_status);
+      if (order.delivery_details?.courier_name) setCourierName(order.delivery_details.courier_name);
+      if (order.delivery_details?.tracking_number) setTrackingNumber(order.delivery_details.tracking_number);
+    }
+  }, [order?.id, order?.order_status, order?.payment_status]);
+
   if (!order) {
     return (
       <div className="p-8 text-center">

@@ -43,11 +43,17 @@ export async function POST(req: NextRequest) {
     if (orderStatus) updatePayload.order_status = orderStatus;
     if (paymentStatus) updatePayload.payment_status = paymentStatus;
 
-    const { data: updatedOrder, error } = await supabaseAdmin
-      .from('orders')
-      .update(updatePayload)
-      .or(`id.eq.${orderId},order_number.eq.${orderId}`)
-      .select('*');
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUuid = typeof orderId === 'string' && UUID_REGEX.test(orderId);
+
+    let query = supabaseAdmin.from('orders').update(updatePayload);
+    if (isUuid) {
+      query = query.eq('id', orderId);
+    } else {
+      query = query.eq('order_number', orderId);
+    }
+
+    const { data: updatedOrder, error } = await query.select('*');
 
     if (error) {
       console.warn('Error updating order status:', error.message);
