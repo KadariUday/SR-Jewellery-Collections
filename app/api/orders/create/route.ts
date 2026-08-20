@@ -173,28 +173,21 @@ export async function POST(req: NextRequest) {
 
     let createdOrder: any = null;
 
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('orders')
-        .insert([orderPayload])
-        .select('*')
-        .single();
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .insert([orderPayload])
+      .select('*')
+      .single();
 
-      if (!error && data) {
-        createdOrder = data;
-      } else if (error) {
-        console.warn('Supabase order insert warning:', error.message);
-      }
-    } catch (e: any) {
-      console.warn('Supabase order exception:', e.message);
+    if (error) {
+      console.error('Supabase order insert error details:', error);
+      return NextResponse.json(
+        { error: `Failed to insert order into database: ${error.message} (${error.details || ''})` },
+        { status: 500 }
+      );
     }
 
-    if (!createdOrder) {
-      createdOrder = {
-        id: `ord-${Date.now()}`,
-        ...orderPayload,
-      };
-    }
+    createdOrder = data;
 
     // 6. Insert Order Items into Supabase database
     try {
