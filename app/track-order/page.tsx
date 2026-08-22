@@ -19,10 +19,10 @@ function TrackOrderContent() {
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    if (orderNumberParam) {
-      handleSearch(orderNumberParam);
+    if (orderNumberParam || query) {
+      handleSearch(orderNumberParam || query);
     }
-  }, [orderNumberParam]);
+  }, [orderNumberParam, orders]);
 
   const handleSearch = (ordNum: string) => {
     const clean = ordNum.trim().toLowerCase();

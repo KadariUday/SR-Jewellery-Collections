@@ -234,7 +234,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      order: createdOrder,
+      order: {
+        ...createdOrder,
+        items: validatedOrderItems,
+      },
       orderNumber: createdOrder.order_number || orderNumber,
       message: 'Order created successfully.',
     });

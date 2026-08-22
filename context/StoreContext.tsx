@@ -123,251 +123,141 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [reviews, setReviews] = useState<ProductReview[]>(INITIAL_REVIEWS);
 
-  // Load persisted store data from localStorage if available
+  // Load persisted user session and hydrate store data directly from Supabase (Single Source of Truth)
   useEffect(() => {
     try {
-      const savedProfile = localStorage.getItem('srj_store_profile');
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        if (parsed.logo_url && parsed.logo_url.includes('unsplash.com')) {
-          parsed.logo_url = '/logo.jpg';
-          safeSetLocalStorage('srj_store_profile', parsed);
-        }
-        setStoreProfile(parsed);
-      }
-
-      // Load products from local storage first
-      const savedProducts = localStorage.getItem('srj_products');
-      let initialProductsList: Product[] = [];
-
-      if (savedProducts) {
-        try {
-          const parsed = JSON.parse(savedProducts);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            initialProductsList = parsed;
-          }
-        } catch (e) {
-          console.warn('Error parsing saved products', e);
-        }
-      }
-
-      // Initialize with INITIAL_PRODUCTS
-      if (initialProductsList.length === 0) {
-        initialProductsList = [...INITIAL_PRODUCTS];
-      } else {
-        // Merge any newly added default INITIAL_PRODUCTS missing from local storage
-        const existingIds = new Set(initialProductsList.map((p) => p.id));
-        INITIAL_PRODUCTS.forEach((initP) => {
-          if (!existingIds.has(initP.id)) {
-            initialProductsList.push(initP);
-          }
-        });
-      }
-
-      setProducts(initialProductsList);
-      safeSetLocalStorage('srj_products', initialProductsList);
-
-      const savedCategories = localStorage.getItem('srj_categories');
-      if (savedCategories) {
-        try {
-          const parsed = JSON.parse(savedCategories);
-          if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed);
-        } catch (e) {}
-      }
-
-      const savedOrders = localStorage.getItem('srj_orders');
-      if (savedOrders) {
-        const parsed = JSON.parse(savedOrders);
-        if (Array.isArray(parsed) && parsed.length > 0) setOrders(parsed);
-      }
-
-      const savedSettings = localStorage.getItem('srj_store_settings');
-      if (savedSettings) setStoreSettings(JSON.parse(savedSettings));
-
-      const savedAddresses = localStorage.getItem('srj_addresses');
-      if (savedAddresses) setAddresses(JSON.parse(savedAddresses));
-
-      const savedMessages = localStorage.getItem('srj_messages');
-      if (savedMessages) {
-        const parsed = JSON.parse(savedMessages);
-        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
-      }
-
-      const savedCoupons = localStorage.getItem('srj_coupons');
-      if (savedCoupons) {
-        const parsed = JSON.parse(savedCoupons);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const merged = [...parsed];
-          const udayIndex = merged.findIndex((c) => c.code.toUpperCase() === 'UDAY99');
-          if (udayIndex > -1) {
-            merged[udayIndex] = {
-              ...merged[udayIndex],
-              code: 'UDAY99',
-              discount_type: 'PERCENTAGE',
-              discount_value: 99,
-              min_order_amount: 0,
-              status: 'ACTIVE',
-            };
-          } else {
-            merged.unshift({
-              id: 'coup-uday99',
-              code: 'UDAY99',
-              discount_type: 'PERCENTAGE',
-              discount_value: 99,
-              min_order_amount: 0,
-              max_discount_amount: 0,
-              status: 'ACTIVE',
-              usage_count: 99,
-              created_at: new Date().toISOString(),
-            });
-          }
-          setCoupons(merged);
-          safeSetLocalStorage('srj_coupons', merged);
-        }
-      }
-
-      const savedReviews = localStorage.getItem('srj_reviews');
-      if (savedReviews) {
-        const parsed = JSON.parse(savedReviews);
-        if (Array.isArray(parsed) && parsed.length > 0) setReviews(parsed);
-      }
-
       const savedUser = localStorage.getItem('srj_active_user');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && parsed.id) setCurrentUser(parsed);
       }
 
-      // Fetch live store profile directly from Supabase (Single Source of Truth)
-      try {
-        supabase
-          .from('store_profile')
-          .select('*')
-          .eq('id', '00000000-0000-0000-0000-000000000001')
-          .single()
-          .then(({ data, error }) => {
-            if (!error && data) {
-              const profileData = data as StoreProfile;
-              if (profileData.upi_vpa && !profileData.upi_id) {
-                profileData.upi_id = profileData.upi_vpa;
-              } else if (profileData.upi_id && !profileData.upi_vpa) {
-                profileData.upi_vpa = profileData.upi_id;
-              }
-              setStoreProfile(profileData);
+      // 1. Fetch live store profile from Supabase
+      supabase
+        .from('store_profile')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            const profileData = data as StoreProfile;
+            if (profileData.upi_vpa && !profileData.upi_id) {
+              profileData.upi_id = profileData.upi_vpa;
+            } else if (profileData.upi_id && !profileData.upi_vpa) {
+              profileData.upi_vpa = profileData.upi_id;
             }
-          });
-      } catch (e) {}
-
-      // Fetch live store settings directly from Supabase (Single Source of Truth)
-      try {
-        supabase
-          .from('store_settings')
-          .select('*')
-          .eq('id', '00000000-0000-0000-0000-000000000001')
-          .single()
-          .then(({ data, error }) => {
-            if (!error && data) {
-              setStoreSettings(data as StoreSettings);
-            }
-          });
-      } catch (e) {}
-
-      // 1. Fetch live products from Supabase and merge all default INITIAL_PRODUCTS
-      try {
-        supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-          let loaded = (!error && data && data.length > 0) ? (data as Product[]) : [...INITIAL_PRODUCTS];
-
-          // Merge any default INITIAL_PRODUCTS missing from response
-          const loadedIds = new Set(loaded.map((p) => p.id));
-          INITIAL_PRODUCTS.forEach((initP) => {
-            if (!loadedIds.has(initP.id)) {
-              loaded.push(initP);
-            }
-          });
-
-          setProducts(loaded);
-          safeSetLocalStorage('srj_products', loaded);
-        });
-      } catch (e) {}
-
-      // 4. Fetch live categories from Supabase
-      try {
-        supabase.from('categories').select('*').then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            setCategories(data as Category[]);
-            safeSetLocalStorage('srj_categories', data);
+            setStoreProfile(profileData);
           }
         });
-      } catch (e) {}
 
-      // 5. Fetch live orders via server API route (Service Role Key guarantees all store orders are fetched)
-      try {
+      // 2. Fetch live store settings from Supabase
+      supabase
+        .from('store_settings')
+        .select('*')
+        .eq('id', '00000000-0000-0000-0000-000000000001')
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setStoreSettings(data as StoreSettings);
+          }
+        });
+
+      // 3. Fetch live products from Supabase and merge any default INITIAL_PRODUCTS
+      supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+        let loaded = (!error && data && data.length > 0) ? (data as Product[]) : [...INITIAL_PRODUCTS];
+        const loadedIds = new Set(loaded.map((p) => p.id));
+        INITIAL_PRODUCTS.forEach((initP) => {
+          if (!loadedIds.has(initP.id)) {
+            loaded.push(initP);
+          }
+        });
+        setProducts(loaded);
+      });
+
+      // 4. Fetch live categories from Supabase
+      supabase.from('categories').select('*').then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setCategories(data as Category[]);
+        }
+      });
+
+      // 5. Fetch live orders via server API route
+      fetch('/api/orders')
+        .then((res) => res.json())
+        .then((apiData) => {
+          if (apiData.success && Array.isArray(apiData.orders) && apiData.orders.length > 0) {
+            setOrders(apiData.orders);
+          } else {
+            supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }).then(({ data, error }) => {
+              if (!error && data && data.length > 0) {
+                const formatted = data.map((o: any) => ({
+                  ...o,
+                  items: o.order_items || o.items || [],
+                }));
+                setOrders(formatted as Order[]);
+              }
+            });
+          }
+        })
+        .catch(() => {});
+
+      // 6. Fetch live coupons from Supabase
+      supabase.from('coupons').select('*').then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const mapped: Coupon[] = data.map((c: any) => ({
+            id: c.id,
+            code: c.code,
+            discount_type: c.discount_type,
+            discount_value: Number(c.discount_value),
+            min_order_amount: Number(c.min_order_value || 0),
+            max_discount_amount: Number(c.max_discount || 0),
+            status: c.is_active ? 'ACTIVE' : 'EXPIRED',
+            usage_count: c.usage_count || 0,
+            created_at: c.created_at,
+          }));
+          setCoupons(mapped);
+        }
+      });
+
+      // 7. Fetch live reviews from Supabase
+      supabase.from('reviews').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setReviews(data as ProductReview[]);
+        }
+      });
+
+      // 8. Fetch live contact messages from Supabase
+      supabase.from('contact_messages').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setMessages(data as ContactMessage[]);
+        }
+      });
+
+      // 9. Fetch live customer addresses from Supabase
+      supabase.from('customer_addresses').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setAddresses(data as CustomerAddress[]);
+        }
+      });
+    } catch (e) {
+      console.error("Error loading Supabase store context", e);
+    }
+  }, []);
+
+  // Supabase Realtime Global Subscriptions for ALL admin and user tables
+  useEffect(() => {
+    try {
+      const fetchFreshOrders = () => {
         fetch('/api/orders')
           .then((res) => res.json())
           .then((apiData) => {
             if (apiData.success && Array.isArray(apiData.orders) && apiData.orders.length > 0) {
               setOrders(apiData.orders);
-              safeSetLocalStorage('srj_orders', apiData.orders);
-            } else {
-              supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-                if (!error && data && data.length > 0) {
-                  setOrders(data as Order[]);
-                  safeSetLocalStorage('srj_orders', data);
-                }
-              });
             }
           })
           .catch(() => {});
-      } catch (e) {}
+      };
 
-      // 6. Fetch live coupons from Supabase
-      try {
-        supabase.from('coupons').select('*').then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const mapped: Coupon[] = data.map((c: any) => ({
-              id: c.id,
-              code: c.code,
-              discount_type: c.discount_type,
-              discount_value: Number(c.discount_value),
-              min_order_amount: Number(c.min_order_value || 0),
-              max_discount_amount: Number(c.max_discount || 0),
-              status: c.is_active ? 'ACTIVE' : 'EXPIRED',
-              usage_count: c.usage_count || 0,
-              created_at: c.created_at,
-            }));
-            setCoupons(mapped);
-            safeSetLocalStorage('srj_coupons', mapped);
-          }
-        });
-      } catch (e) {}
-
-      // 7. Fetch live reviews from Supabase
-      try {
-        supabase.from('reviews').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            setReviews(data as ProductReview[]);
-            safeSetLocalStorage('srj_reviews', data);
-          }
-        });
-      } catch (e) {}
-
-      // 8. Fetch live contact messages from Supabase
-      try {
-        supabase.from('contact_messages').select('*').order('created_at', { ascending: false }).then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            setMessages(data as ContactMessage[]);
-            safeSetLocalStorage('srj_messages', data);
-          }
-        });
-      } catch (e) {}
-    } catch (e) {
-      console.error("Error loading persisted store context", e);
-    }
-  }, []);
-
-  // Supabase Realtime Global Subscriptions for ALL admin tables
-  useEffect(() => {
-    try {
       const channel = supabase
         .channel('public:schema_changes')
         .on(
@@ -380,17 +270,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const map = new Map(prev.map((p) => [p.id, p]));
                 const existing = map.get(updatedItem.id) || {};
                 map.set(updatedItem.id, { ...existing, ...updatedItem } as Product);
-                const updatedList = Array.from(map.values());
-                safeSetLocalStorage('srj_products', updatedList);
-                return updatedList;
+                return Array.from(map.values());
               });
             } else if (payload.eventType === 'DELETE' && payload.old) {
               const deletedId = (payload.old as any).id;
-              setProducts((prev) => {
-                const updatedList = prev.filter((p) => p.id !== deletedId);
-                safeSetLocalStorage('srj_products', updatedList);
-                return updatedList;
-              });
+              setProducts((prev) => prev.filter((p) => p.id !== deletedId));
             }
           }
         )
@@ -403,10 +287,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setStoreProfile((prev) => {
                 const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
                 const newTime = updatedProf.updated_at ? new Date(updatedProf.updated_at).getTime() : 0;
-                if (newTime >= prevTime) {
-                  safeSetLocalStorage('srj_store_profile', updatedProf);
-                  return updatedProf;
-                }
+                if (newTime >= prevTime) return updatedProf;
                 return prev;
               });
             }
@@ -421,10 +302,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setStoreSettings((prev) => {
                 const prevTime = prev?.updated_at ? new Date(prev.updated_at).getTime() : 0;
                 const newTime = updatedSettings.updated_at ? new Date(updatedSettings.updated_at).getTime() : 0;
-                if (newTime >= prevTime) {
-                  safeSetLocalStorage('srj_store_settings', updatedSettings);
-                  return updatedSettings;
-                }
+                if (newTime >= prevTime) return updatedSettings;
                 return prev;
               });
             }
@@ -437,13 +315,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (payload.new) {
               const updatedOrder = payload.new as Order;
               setOrders((prev) => {
+                const existing = prev.find((o) => o.id === updatedOrder.id || o.order_number === updatedOrder.order_number);
+                const mergedOrder: Order = {
+                  ...existing,
+                  ...updatedOrder,
+                  items: updatedOrder.items && updatedOrder.items.length > 0 ? updatedOrder.items : (existing?.items || []),
+                  delivery_address: updatedOrder.delivery_address || existing?.delivery_address,
+                  status_history: updatedOrder.status_history || existing?.status_history || [],
+                  delivery_details: updatedOrder.delivery_details || existing?.delivery_details,
+                };
                 const map = new Map(prev.map((o) => [o.id, o]));
-                map.set(updatedOrder.id, updatedOrder);
-                const updatedList = Array.from(map.values());
-                safeSetLocalStorage('srj_orders', updatedList);
-                return updatedList;
+                map.set(mergedOrder.id, mergedOrder);
+                return Array.from(map.values());
               });
+              fetchFreshOrders();
             }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'order_items' },
+          () => {
+            fetchFreshOrders();
           }
         )
         .on(
@@ -466,9 +359,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setCoupons((prev) => {
                 const map = new Map(prev.map((cp) => [cp.id, cp]));
                 map.set(couponObj.id, couponObj);
-                const updatedList = Array.from(map.values());
-                safeSetLocalStorage('srj_coupons', updatedList);
-                return updatedList;
+                return Array.from(map.values());
               });
             }
           }
@@ -482,9 +373,35 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               setReviews((prev) => {
                 const map = new Map(prev.map((rev) => [rev.id, rev]));
                 map.set(r.id, r);
-                const updatedList = Array.from(map.values());
-                safeSetLocalStorage('srj_reviews', updatedList);
-                return updatedList;
+                return Array.from(map.values());
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'contact_messages' },
+          (payload) => {
+            if (payload.new) {
+              const msg = payload.new as ContactMessage;
+              setMessages((prev) => {
+                const map = new Map(prev.map((m) => [m.id, m]));
+                map.set(msg.id, msg);
+                return Array.from(map.values());
+              });
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customer_addresses' },
+          (payload) => {
+            if (payload.new) {
+              const addr = payload.new as CustomerAddress;
+              setAddresses((prev) => {
+                const map = new Map(prev.map((a) => [a.id, a]));
+                map.set(addr.id, addr);
+                return Array.from(map.values());
               });
             }
           }
@@ -499,102 +416,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Real-time cross-tab and same-window synchronization for products, profile, settings, coupons, reviews, messages, orders
-  useEffect(() => {
-    const syncProducts = () => {
-      try {
-        const saved = localStorage.getItem('srj_products');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
-        }
-      } catch (e) {}
-    };
 
-    const syncProfileAndSettings = () => {
-      try {
-        const savedProf = localStorage.getItem('srj_store_profile');
-        if (savedProf) {
-          const parsed = JSON.parse(savedProf);
-          if (parsed && parsed.store_name) setStoreProfile(parsed);
-        }
-        const savedSet = localStorage.getItem('srj_store_settings');
-        if (savedSet) {
-          const parsed = JSON.parse(savedSet);
-          if (parsed) setStoreSettings(parsed);
-        }
-      } catch (e) {}
-    };
-
-    const syncCoupons = () => {
-      try {
-        const saved = localStorage.getItem('srj_coupons');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setCoupons(parsed);
-        }
-      } catch (e) {}
-    };
-
-    const syncReviews = () => {
-      try {
-        const saved = localStorage.getItem('srj_reviews');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setReviews(parsed);
-        }
-      } catch (e) {}
-    };
-
-    const syncOrders = () => {
-      try {
-        const saved = localStorage.getItem('srj_orders');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setOrders(parsed);
-        }
-      } catch (e) {}
-    };
-
-    const syncMessages = () => {
-      try {
-        const saved = localStorage.getItem('srj_messages');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setMessages(parsed);
-        }
-      } catch (e) {}
-    };
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'srj_products') syncProducts();
-      if (e.key === 'srj_store_profile' || e.key === 'srj_store_settings') syncProfileAndSettings();
-      if (e.key === 'srj_coupons') syncCoupons();
-      if (e.key === 'srj_reviews') syncReviews();
-      if (e.key === 'srj_orders') syncOrders();
-      if (e.key === 'srj_messages') syncMessages();
-    };
-
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('srj_products_updated', syncProducts);
-    window.addEventListener('srj_profile_updated', syncProfileAndSettings);
-    window.addEventListener('srj_settings_updated', syncProfileAndSettings);
-    window.addEventListener('srj_coupons_updated', syncCoupons);
-    window.addEventListener('srj_reviews_updated', syncReviews);
-    window.addEventListener('srj_orders_updated', syncOrders);
-    window.addEventListener('srj_messages_updated', syncMessages);
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('srj_products_updated', syncProducts);
-      window.removeEventListener('srj_profile_updated', syncProfileAndSettings);
-      window.removeEventListener('srj_settings_updated', syncProfileAndSettings);
-      window.removeEventListener('srj_coupons_updated', syncCoupons);
-      window.removeEventListener('srj_reviews_updated', syncReviews);
-      window.removeEventListener('srj_orders_updated', syncOrders);
-      window.removeEventListener('srj_messages_updated', syncMessages);
-    };
-  }, []);
 
   const loginCustomer = (userData: Partial<UserProfile>): UserProfile => {
     const existing = customers.find(
@@ -956,11 +778,6 @@ const prepareProductForSupabase = (p: Product) => {
     });
 
     setOrders(updatedOrders);
-    safeSetLocalStorage('srj_orders', updatedOrders);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('srj_orders_updated'));
-    }
 
     // 2. Server API Route Update via Service Role Client
     try {
@@ -969,6 +786,7 @@ const prepareProductForSupabase = (p: Product) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: targetId,
+          orderNumber: targetOrderNumber,
           orderStatus: newStatus,
           paymentStatus: computedPaymentStatus,
           note,
@@ -982,14 +800,20 @@ const prepareProductForSupabase = (p: Product) => {
 
     // 3. Direct Supabase Client update fallback
     try {
-      await supabase
-        .from('orders')
-        .update({
-          order_status: newStatus,
-          payment_status: computedPaymentStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', targetId);
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuid = typeof targetId === 'string' && UUID_REGEX.test(targetId);
+      
+      let updateQuery = supabase.from('orders').update({
+        order_status: newStatus,
+        payment_status: computedPaymentStatus,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (isUuid) {
+        await updateQuery.eq('id', targetId);
+      } else {
+        await updateQuery.eq('order_number', targetOrderNumber);
+      }
     } catch (e) {}
 
     // 4. Re-fetch fresh live orders from server API to guarantee 100% database sync
@@ -998,7 +822,6 @@ const prepareProductForSupabase = (p: Product) => {
       const data = await res.json();
       if (data.success && Array.isArray(data.orders) && data.orders.length > 0) {
         setOrders(data.orders);
-        safeSetLocalStorage('srj_orders', data.orders);
       }
     } catch (e) {}
 

@@ -30,48 +30,73 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { orderId, orderStatus, paymentStatus, note, courierName, trackingNumber } = body;
+    const { orderId, orderNumber, orderStatus, paymentStatus, note, courierName, trackingNumber } = body;
 
-    if (!orderId) {
-      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
+    if (!orderId && !orderNumber) {
+      return NextResponse.json({ error: 'Order ID or Order Number is required' }, { status: 400 });
     }
 
     const supabaseAdmin = createServerClient();
     const now = new Date().toISOString();
 
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    // Find matching order in Supabase DB
+    let dbOrder: any = null;
+    
+    if (orderId && UUID_REGEX.test(orderId)) {
+      const { data } = await supabaseAdmin.from('orders').select('*').eq('id', orderId).maybeSingle();
+      dbOrder = data;
+    }
+    
+    if (!dbOrder && (orderNumber || orderId)) {
+      const targetNum = orderNumber || orderId;
+      const { data } = await supabaseAdmin.from('orders').select('*').eq('order_number', targetNum).maybeSingle();
+      dbOrder = data;
+    }
+
+    if (!dbOrder && orderId) {
+      const { data } = await supabaseAdmin.from('orders').select('*').eq('id', orderId).maybeSingle();
+      dbOrder = data;
+    }
+
+    if (!dbOrder) {
+      console.warn('Order not found in Supabase DB for update:', { orderId, orderNumber });
+      return NextResponse.json({ error: 'Order record not found in database.' }, { status: 404 });
+    }
+
+    const targetUuid = dbOrder.id;
     const updatePayload: any = { updated_at: now };
     if (orderStatus) updatePayload.order_status = orderStatus;
     if (paymentStatus) updatePayload.payment_status = paymentStatus;
 
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isUuid = typeof orderId === 'string' && UUID_REGEX.test(orderId);
-
-    let query = supabaseAdmin.from('orders').update(updatePayload);
-    if (isUuid) {
-      query = query.eq('id', orderId);
-    } else {
-      query = query.eq('order_number', orderId);
-    }
-
-    const { data: updatedOrder, error } = await query.select('*');
+    const { data: updatedOrder, error } = await supabaseAdmin
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', targetUuid)
+      .select('*')
+      .single();
 
     if (error) {
       console.warn('Error updating order status:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Insert status history
+    // Insert status history using valid UUID
     if (orderStatus) {
       try {
         await supabaseAdmin.from('order_status_history').insert([
           {
-            order_id: orderId,
+            order_id: targetUuid,
+            old_status: dbOrder.order_status,
             new_status: orderStatus,
             note: note || `Status updated to ${orderStatus}`,
             created_at: now,
           },
         ]);
-      } catch (e) {}
+      } catch (e: any) {
+        console.warn('Order status history insert warning:', e?.message);
+      }
     }
 
     // Insert delivery details if courier tracking info provided
@@ -79,14 +104,16 @@ export async function POST(req: NextRequest) {
       try {
         await supabaseAdmin.from('order_delivery_details').upsert([
           {
-            order_id: orderId,
+            order_id: targetUuid,
             courier_name: courierName || 'Standard Express',
             tracking_number: trackingNumber || '',
             shipping_provider: courierName || 'Standard Express',
             updated_at: now,
           },
-        ]);
-      } catch (e) {}
+        ], { onConflict: 'order_id' });
+      } catch (e: any) {
+        console.warn('Order delivery details upsert warning:', e?.message);
+      }
     }
 
     return NextResponse.json({ success: true, order: updatedOrder });
